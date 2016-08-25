@@ -1,0 +1,6 @@
+geth
+node_modules/
+build
+environments/
+*.sol.js
+environments/

@@ -2,8 +2,8 @@ import "Token.sol";
 
 contract Table {
     Token token;
-    uint minBuyIn;
-    uint maxBuyIn;
+    uint public minBuyIn;
+    uint public maxBuyIn;
     
     address oracle;
     
@@ -50,8 +50,8 @@ contract Table {
     
     function Table(address _assetAddress, uint _minBuyIn, uint _maxBuyIn, uint _timeout) {
         token = Token(_assetAddress);
-        minBuyIn = _minBuyIn;
-        maxBuyIn = _maxBuyIn;
+        minBuyIn = (_minBuyIn > 0) ? _minBuyIn : 4000;
+        maxBuyIn = (_maxBuyIn > 0) ? _maxBuyIn : 8000;
         closeTimeout = _timeout;
         participants.length ++;
         lastClosed = 0;
