@@ -21,15 +21,16 @@ contract Table {
         uint136 amount;     //max bet
         uint112 hand;       //which hand
         address signer;
-        //uint8 v
-        //bytes32 r
-        //bytes32 s
+        // uint8 v;
+        // bytes32 r;
+        // bytes32 s;
     }
     
     struct Distribution {
         uint112 hand;
         uint8 claimCount;   //the receipt number the oracle issued for this game, the highest is valid
-        bytes dists;   //list of tuple  (address player, uint136 amount) how much each player received
+        bytes32 w1;
+        bytes32 w2;   //bytes32[] dists;   //list of tuple  (address player, uint96 amount) how much each player received
         //uint8 v
         //bytes32 r
         //bytes32 s
@@ -46,10 +47,36 @@ contract Table {
     
     Hand[] hands;  // game number increasing from 0 to 2^112
     
-    event LineUp(address[] active);
+    function lastHand() constant returns (uint112) {
+        return uint112(hands.length-1);
+    }
     
-    function Table(address _assetAddress, uint _minBuyIn, uint _maxBuyIn, uint _timeout) {
+    function getReceipts(uint _handId) constant returns (uint136[] amounts, address[] signers) {
+        Hand hand = hands[_handId];
+        amounts = new uint136[](hand.receipts.length - 1);
+        signers = new address[](hand.receipts.length - 1);
+        for (uint i = 1; i < hand.receipts.length; i ++) {
+            amounts[i - 1] = hand.receipts[i].amount;
+            signers[i - 1] = hand.receipts[i].signer;
+        }
+    }
+    
+    function getDist(uint _handId) constant returns (uint112, uint8, bytes32, bytes32) {
+        Hand hand = hands[_handId];
+        return (hand.distribution.hand, hand.distribution.claimCount, hand.distribution.w1, hand.distribution.w2);
+    }
+
+    function getWin(uint _handId, address addr) constant returns (int) {
+        Hand hand = hands[_handId];
+        return hand.closing[addr];
+    }
+
+    event LineUp(address[] active);
+    event Error(uint code);
+    
+    function Table(address _assetAddress, address _oracle, uint _minBuyIn, uint _maxBuyIn, uint _timeout) {
         token = Token(_assetAddress);
+        oracle = _oracle;
         minBuyIn = (_minBuyIn > 0) ? _minBuyIn : 4000;
         maxBuyIn = (_maxBuyIn > 0) ? _maxBuyIn : 8000;
         closeTimeout = _timeout;
@@ -62,35 +89,37 @@ contract Table {
         for (uint i = 0; i < count; i ++) {
             uint pos = i * 96;
             uint136 amount;
-            uint112 game;
+            uint112 hand;
             uint8 v;
             bytes32 r;
             bytes32 s;
             assembly {
                 amount := mload(add(data, add(pos, 17)))
-                game := mload(add(data, add(pos, 31)))
-                v := and(mload(add(data, add(pos, 32))), 1)
+                hand := mload(add(data, add(pos, 31)))
+                v := mload(add(data, add(pos, 32)))
                 r := mload(add(data, add(pos, 64)))
                 s := mload(add(data, add(pos, 96)))
             }
-            if(v < 27) v += 27;
-            address signer = ecrecover(sha3(amount, game), v, r, s);
-            receipts[i] = Receipt(amount, game, signer);
+            address signer = ecrecover(sha3(amount, hand), v, r, s);
+            receipts[i] = Receipt(amount, hand, signer);
         }
         return receipts;
     }
     
-    function _buildDistribution(bytes memory data) internal returns (address[] players, uint136[] amounts) {
-        players = new address[](data.length / 37);
-        amounts = new uint136[](data.length / 37);
+    function _buildDistribution(bytes32 w1, bytes32 w2) internal returns (address[] players, uint96[] amounts) {
+        players = new address[](2);
+        amounts = new uint96[](2);
         
-        for (uint i = 0; i < data.length / 37; i++) {
-            uint pos = i  * 37;
+        for (uint i = 0; i < 2; i++) {
+            bytes memory d = new bytes(32);
+            for (uint j = 0; j < 32; j++) {
+                d[j] = (i == 0) ? w1[j] : w2[j];
+            }
             address player;
-            uint136 amount;
+            uint96 amount;
             assembly {
-                player : = mload(add(data, add(pos, 20)))
-                amount := mload(add(data, add(pos, 37)))
+                player : = mload(add(d, 20))
+                amount := mload(add(d, 32))
             }
             players[i] = player;
             amounts[i] = amount;
@@ -99,33 +128,34 @@ contract Table {
         return (players, amounts);
     }
     
+    
     function _buildProof(uint8 count, bytes memory data) internal returns (Distribution[]) {
         Distribution[] memory distributions = new Distribution[](count);
         uint pos = 0;
         for (uint i = 0; i < count; i ++) {
-            uint112 game;
+            uint112 handId;
             uint8 claimCount;
             uint8 v;
             bytes32 r;
             bytes32 s;
-            uint8 distsLength;
-            bytes memory dists;
+            bytes32 w1;
+            bytes32 w2;
             assembly {
-                game := mload(add(data, add(pos, 14)))
+                handId := mload(add(data, add(pos, 14)))
                 claimCount := mload(add(data, add(pos, 15)))
-                v := and(mload(add(data, add(pos, 16))), 1)
+                v := mload(add(data, add(pos, 16)))
                 r := mload(add(data, add(pos, 48)))
                 s := mload(add(data, add(pos, 80)))
-                distsLength := mload(add(data, add(pos, 88)))
-                dists := mload(add(data, add(pos, distsLength)))
+                w1 := mload(add(data, add(pos, 113)))
+                w2 := mload(add(data, add(pos, 145)))
             }
-            pos += pos + 88 + distsLength;
-            if(v < 27) v += 27;
-            address signer = ecrecover(sha3(game, claimCount, dists), v, r, s);
-            if (signer != oracle) {
-                throw;
+            bytes32[] memory dists = new bytes32[](2);
+            dists[0] = w1;
+            dists[1] = w2;
+            if (ecrecover(sha3(handId, claimCount, w1, w2), v, r, s) != oracle) {
+               throw;
             }
-            distributions[i] = Distribution(game, claimCount, dists);
+            distributions[i] = Distribution(handId, claimCount, w1, w2);
         }
         return distributions;
     }
@@ -153,37 +183,43 @@ contract Table {
     
     function claim(uint8 _count, bytes memory _distributions) {
         Distribution[] memory distributions = _buildProof(_count, _distributions);
-        for (uint i = 0; i < _count; i ++) {
+        for (uint i = 0; i < distributions.length; i ++) {
             uint pos = distributions[i].hand;
             if (hands.length < pos) {
                 hands.length = pos + 1;
-                hands[pos].distribution = Distribution(distributions[i].hand, distributions[i].claimCount, distributions[i].dists);
+                
+            }
+            if (hands[pos].distribution.hand == 0) {
+                hands[pos].distribution = Distribution(distributions[i].hand, distributions[i].claimCount, distributions[i].w1, distributions[i].w2);
             }
             if (hands[pos].distribution.claimCount < distributions[i].claimCount) {
                 hands[pos].distribution.claimCount = distributions[i].claimCount;
-                hands[pos].distribution.dists = distributions[i].dists;
+                hands[pos].distribution.w1 = distributions[i].w1;
+                hands[pos].distribution.w2 = distributions[i].w2;
             }
             hands[pos].lastUpdate = block.number;
         }
     }
-    
+
     function withdraw() returns (bool) {
         //1. close as many hands as possible
+
         uint i = lastClosed + 1;
-        while (hands[i].lastUpdate + closeTimeout < block.number) {
+        while (i < hands.length && hands[i].lastUpdate + closeTimeout < block.number) {
             for (uint j = 0; j < hands[i].receipts.length; j++) {
                 hands[i].closing[hands[i].receipts[j].signer] = -1 * int(hands[i].receipts[j].amount);
             }
+
             address[] memory players;
-            uint136[] memory amounts;
-            (players, amounts) = _buildDistribution(hands[i].distribution.dists);
+            uint96[] memory amounts;
+            (players, amounts) = _buildDistribution(hands[i].distribution.w1, hands[i].distribution.w2);
             for (j = 0; j < players.length; j++) {
                 hands[i].closing[players[j]] = hands[i].closing[players[j]] + int(amounts[j]);
             }
             lastClosed = i;
             i++;
         }
-        
+
         //2. net account 
         Participant part = participants[partIndex[msg.sender]];
         for (i = part.lastHandNetted; i < lastClosed; i ++) {
