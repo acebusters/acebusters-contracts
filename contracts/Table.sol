@@ -1,3 +1,4 @@
+//pragma solidity ^0.4.1;
 import "Token.sol";
 
 contract Table {
@@ -5,300 +6,315 @@ contract Table {
     uint public minBuyIn;
     uint public maxBuyIn;
     
-    address oracle;
+    event NettingRequest(uint hand);
+    event Netted(uint hand);
     
-    uint[] public active;
-    mapping (address => uint) partIndex;
-    Participant[] public participants;
+    address oracle = 0xf3beac30c498d9e26865f34fcaa57dbb935b0d74;
     
-    struct Participant {
-        address nodeAddress;
-        uint256 balance;
-        uint256 lastHandNetted;  //hand Id when last netted
-    }
-    
-    struct Receipt {
-        uint136 amount;     //max bet
-        uint112 hand;       //which hand
-        address signer;
-        // uint8 v;
-        // bytes32 r;
-        // bytes32 s;
-    }
-    
-    struct Distribution {
-        uint112 hand;
-        uint8 claimCount;   //the receipt number the oracle issued for this game, the highest is valid
-        bytes32 w1;
-        bytes32 w2;   //bytes32[] dists;   //list of tuple  (address player, uint96 amount) how much each player received
-        //uint8 v
-        //bytes32 r
-        //bytes32 s
-    }
-    
-    uint closeTimeout;     //how many blocks a hand should be open till ready to close
-    uint lastClosed;        //last hand that closed
     struct Hand {
-        Receipt[] receipts;
-        Distribution distribution;
-        uint256 lastUpdate; //if lastUpdate + settleTimout < block.number then the data of this block can be used for withdrawals
-        mapping(address => int) closing;
+        //in
+        mapping (address => uint96) ins;
+        //out
+        uint claimCount;
+        mapping (address => uint96) outs;
+    }
+
+    struct Seat {
+        address addr;
+        uint96 amount;
+        uint lastHand;
+        bytes32 conn;
     }
     
-    Hand[] hands;  // game number increasing from 0 to 2^112
+    Hand[] hands;
+    Seat[] seats;
+    mapping(address => uint) seatMap;
+    uint public lastHandNetted;
     
-    function lastHand() constant returns (uint112) {
-        return uint112(hands.length-1);
+    uint public lastNettingRequestHandId;
+    uint public lastNettingRequestTime;
+    
+    function Table() {
+        seats.length = 10;
+        lastHandNetted = 0;
     }
     
-    function getReceipts(uint _handId) constant returns (uint136[] amounts, address[] signers) {
-        Hand hand = hands[_handId];
-        amounts = new uint136[](hand.receipts.length - 1);
-        signers = new address[](hand.receipts.length - 1);
-        for (uint i = 1; i < hand.receipts.length; i ++) {
-            amounts[i - 1] = hand.receipts[i].amount;
-            signers[i - 1] = hand.receipts[i].signer;
+    function getLineup() constant returns (address[] addr, uint96[] amount, bytes32[] conn) {
+        addr = new address[](seats.length);
+        amount = new uint96[](seats.length);
+        conn = new bytes32[](seats.length);
+        for (uint i = 0; i < seats.length; i++) {
+            if (seats[i].amount > 0 && seats[i].lastHand == 0) {
+                addr[i] = seats[i].addr;
+                amount[i] = seats[i].amount;
+                conn[i] = seats[i].conn;
+            }
         }
+        return (addr, amount, conn);
     }
     
-    function getDist(uint _handId) constant returns (uint112, uint8, bytes32, bytes32) {
-        Hand hand = hands[_handId];
-        return (hand.distribution.hand, hand.distribution.claimCount, hand.distribution.w1, hand.distribution.w2);
-    }
-
-    function getWin(uint _handId, address addr) constant returns (int) {
-        Hand hand = hands[_handId];
-        return hand.closing[addr];
-    }
-
-    event LineUp(address[] active);
-    event Error(uint code);
-    
-    function Table(address _assetAddress, address _oracle, uint _minBuyIn, uint _maxBuyIn, uint _timeout) {
-        token = Token(_assetAddress);
-        oracle = _oracle;
-        minBuyIn = (_minBuyIn > 0) ? _minBuyIn : 4000;
-        maxBuyIn = (_maxBuyIn > 0) ? _maxBuyIn : 8000;
-        closeTimeout = _timeout;
-        participants.length ++;
-        lastClosed = 0;
-    }
-    
-    function _buildReceipts(uint8 count, bytes memory data) internal returns (Receipt[]) {
-        Receipt[] memory receipts = new Receipt[](count);
-        for (uint i = 0; i < count; i ++) {
-            uint pos = i * 96;
-            uint136 amount;
-            uint112 hand;
+    function settle(bytes _newBalances, bytes _sigs) returns (bool) {
+        mapping(address => uint96) hasSigned;
+        uint handId;
+        address[] memory addr;
+        uint96[] memory amount;
+        assembly {
+            handId := mload(add(_newBalances, 36))
+            //prepare loop
+            let i := 0
+            let len := mload(add(_newBalances, 100))
+            //create addr array
+            addr := mload(0x40)
+            mstore(addr, 0x20)
+            addr := add(0x20, addr)
+            mstore(addr, len)
+            //create amount array
+            amount := add(0x40, add(addr, len))
+            mstore(amount, 0x20)
+            amount := add(0x20, amount)
+            mstore(amount, len)
+            mstore(0x40, add(amount, and(add(add(len, 0x20), 0x1f), not(0x1f))))
+            
+            loop:
+                jumpi(end, eq(i, len))
+                {
+                    i := add(i, 1)
+                    let elem := mload(add(_newBalances, add(120, mul(i, 0x20))))
+                    mstore(add(addr, mul(i, 0x20)), elem)
+                    elem := mload(add(_newBalances, add(132, mul(i, 0x20))))
+                    mstore(add(amount, mul(i, 0x20)), elem)
+                }
+                jump(loop)
+            end:
+        }
+        for (uint i = 0; i < _sigs.length / 65; i++) {
             uint8 v;
             bytes32 r;
             bytes32 s;
             assembly {
-                amount := mload(add(data, add(pos, 17)))
-                hand := mload(add(data, add(pos, 31)))
-                v := mload(add(data, add(pos, 32)))
-                r := mload(add(data, add(pos, 64)))
-                s := mload(add(data, add(pos, 96)))
+                r := mload(add(_sigs, add(32, mul(i, 65))))
+                s := mload(add(_sigs, add(64, mul(i, 65))))
+                v := mload(add(_sigs, add(65, mul(i, 65))))
             }
-            address signer = ecrecover(sha3(amount, hand), v, r, s);
-            receipts[i] = Receipt(amount, hand, signer);
-        }
-        return receipts;
-    }
-    
-    function _buildDistribution(bytes32 w1, bytes32 w2) internal returns (address[] players, uint96[] amounts) {
-        players = new address[](2);
-        amounts = new uint96[](2);
-        
-        for (uint i = 0; i < 2; i++) {
-            bytes memory d = new bytes(32);
-            for (uint j = 0; j < 32; j++) {
-                d[j] = (i == 0) ? w1[j] : w2[j];
-            }
-            address player;
-            uint96 amount;
-            assembly {
-                player : = mload(add(d, 20))
-                amount := mload(add(d, 32))
-            }
-            players[i] = player;
-            amounts[i] = amount;
+            hasSigned[ecrecover(sha3(_newBalances), v, r, s)] = amount[i];
         }
         
-        return (players, amounts);
-    }
-    
-    
-    function _buildProof(uint8 count, bytes memory data) internal returns (Distribution[]) {
-        Distribution[] memory distributions = new Distribution[](count);
-        uint pos = 0;
-        for (uint i = 0; i < count; i ++) {
-            uint112 handId;
-            uint8 claimCount;
-            uint8 v;
-            bytes32 r;
-            bytes32 s;
-            bytes32 w1;
-            bytes32 w2;
-            assembly {
-                handId := mload(add(data, add(pos, 14)))
-                claimCount := mload(add(data, add(pos, 15)))
-                v := mload(add(data, add(pos, 16)))
-                r := mload(add(data, add(pos, 48)))
-                s := mload(add(data, add(pos, 80)))
-                w1 := mload(add(data, add(pos, 113)))
-                w2 := mload(add(data, add(pos, 145)))
-            }
-            bytes32[] memory dists = new bytes32[](2);
-            dists[0] = w1;
-            dists[1] = w2;
-            if (ecrecover(sha3(handId, claimCount, w1, w2), v, r, s) != oracle) {
-               throw;
-            }
-            distributions[i] = Distribution(handId, claimCount, w1, w2);
-        }
-        return distributions;
-    }
-    
-    function report(uint8 _count, bytes memory _receipts) {
-        Receipt[] memory receipts = _buildReceipts(_count, _receipts);
-        for (uint i = 0; i < _count; i ++) {
-            uint pos = receipts[i].hand;
-            if (hands.length < pos) {
-                hands.length = pos + 1;
-                hands[pos].receipts.length ++;
-            }
-            int recPos = hands[pos].closing[receipts[i].signer];
-            if (recPos < 1) {
-                recPos = int(hands[pos].receipts.length++);
-                hands[pos].receipts[uint(recPos)] = Receipt(receipts[i].amount, receipts[i].hand, receipts[i].signer);
-                hands[pos].closing[receipts[i].signer] = recPos;
-            } else {
-                Receipt existing = hands[pos].receipts[uint(recPos)];
-                existing.amount = (existing.amount < receipts[i].amount) ? receipts[i].amount : existing.amount;
-            }
-            hands[pos].lastUpdate = block.number;
-        }
-    }
-    
-    function claim(uint8 _count, bytes memory _distributions) {
-        Distribution[] memory distributions = _buildProof(_count, _distributions);
-        for (uint i = 0; i < distributions.length; i ++) {
-            uint pos = distributions[i].hand;
-            if (hands.length < pos) {
-                hands.length = pos + 1;
-                
-            }
-            if (hands[pos].distribution.hand == 0) {
-                hands[pos].distribution = Distribution(distributions[i].hand, distributions[i].claimCount, distributions[i].w1, distributions[i].w2);
-            }
-            if (hands[pos].distribution.claimCount < distributions[i].claimCount) {
-                hands[pos].distribution.claimCount = distributions[i].claimCount;
-                hands[pos].distribution.w1 = distributions[i].w1;
-                hands[pos].distribution.w2 = distributions[i].w2;
-            }
-            hands[pos].lastUpdate = block.number;
-        }
-    }
-
-    function withdraw() returns (bool) {
-        //1. close as many hands as possible
-
-        uint i = lastClosed + 1;
-        while (i < hands.length && hands[i].lastUpdate + closeTimeout < block.number) {
-            for (uint j = 0; j < hands[i].receipts.length; j++) {
-                hands[i].closing[hands[i].receipts[j].signer] = -1 * int(hands[i].receipts[j].amount);
-            }
-
-            address[] memory players;
-            uint96[] memory amounts;
-            (players, amounts) = _buildDistribution(hands[i].distribution.w1, hands[i].distribution.w2);
-            for (j = 0; j < players.length; j++) {
-                hands[i].closing[players[j]] = hands[i].closing[players[j]] + int(amounts[j]);
-            }
-            lastClosed = i;
-            i++;
-        }
-
-        //2. net account 
-        Participant part = participants[partIndex[msg.sender]];
-        for (i = part.lastHandNetted; i < lastClosed; i ++) {
-            int amount = hands[i].closing[msg.sender];
-            if (amount > 0)
-                part.balance += uint(amount);
-            else
-                part.balance -= uint(amount);
-        }
-        part.lastHandNetted = lastClosed;
-        
-        //TODO: make sure next hands 
-        
-        //3. withdraw
-        return token.transfer(msg.sender, part.balance);
-    }
-    
-    function join(uint _buyIn) {
-        //check capacity and state        
-        if (active.length >= 10) {
+        //check sigs
+        bool allSigned = true;
+        for (i = 0; i < seats.length; i++)
+            if(seats[i].amount > 0)
+                allSigned == allSigned && (hasSigned[seats[i].addr] > 0);
+        allSigned = (hasSigned[oracle] > 0);
+        if (!allSigned)
             throw;
+        
+        //set new balances
+        for (i = 0; i < seats.length; i++) {
+            seats[i].amount = hasSigned[seats[i].addr];
         }
-        for (uint i = 0; i < active.length; i ++) {
-            if (participants[active[i]].nodeAddress == msg.sender) {
-                throw;
-            }
-        }
+        lastHandNetted = handId;
+        Netted(handId);
+    }
+    
+    function join(uint96 _buyIn, bytes32 _conn) {
         
         //check the dough
         if (minBuyIn > _buyIn || _buyIn > maxBuyIn) {
             throw;
         }
         
+        //no beggers
         if (token.balanceOf(msg.sender) < _buyIn) {
             throw;
         }
-        if (!token.transferFrom(msg.sender, this, _buyIn)) {
-            throw;
+        
+        //avoid duplicate players
+        for (uint i = 0; i < seats.length; i++ )
+            if (seats[i].addr == msg.sender)
+                throw;
+        
+        //check capacity and state
+        for (i = 0; i < seats.length; i++ ) {
+            if (seats[i].amount == 0) {
+                if (token.transferFrom(msg.sender, this, _buyIn)) {
+                    seats[i].addr = msg.sender;
+                    seats[i].amount = _buyIn;
+                    seats[i].conn = _conn;
+                }
+            }
+            break;
         }
-        
-        
-        uint pos = partIndex[msg.sender];
-        if (pos == 0) {
-            pos = participants.length++;
-        }
-        
-        participants[pos] = Participant(msg.sender, _buyIn, block.number);
-        partIndex[msg.sender] = pos;
-        
-        uint seat = active.length++;
-        active[seat] = pos;
-        
-        address[] memory actAddr = new address[](active.length);
-        for (i = 0; i < active.length; i ++) {
-            actAddr[i] = participants[active[i]].nodeAddress;
-        }
-        LineUp(actAddr);
     }
     
-    
-    //todo: insert new player where this one left
-    function leave() {
-        uint pos = 11;
-        for (uint i = 0; i < active.length; i ++) {
-            if (participants[active[i]].nodeAddress == msg.sender) {
-                pos = i;
-            }
-            if (pos < 11 && i > active.length - 1) {
-                active[i] = active[i + 1];
-            }
+    function leave(bytes _leaveReceipt) returns (address) {
+        bytes4 name;
+        uint handId;
+        address leaver;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+
+        assembly {
+            name := mload(add(_leaveReceipt, 4))
+            handId := mload(add(_leaveReceipt, 36))
+            leaver := mload(add(_leaveReceipt, 68))
+            r := mload(add(_leaveReceipt, 100))
+            s := mload(add(_leaveReceipt, 132))
+            v := mload(add(_leaveReceipt, 133))
         }
-        if (pos == 11) {
+        name = 0x6c28a3a9; //todo: fix
+        address signer = ecrecover(sha3(name, handId, bytes32(leaver)), v, r, s);
+        if (signer != oracle)
             throw;
-        } else {
-            active.length--;
+
+        seats[seatMap[leaver]].lastHand = handId;
+        //create new netting request
+        if (lastNettingRequestHandId < handId) {
+            NettingRequest(handId);
+            lastNettingRequestHandId = handId;
+            lastNettingRequestTime = now;
         }
-        //settle bill;
     }
     
-    function kick() {}
+    function net() {
+        if (now  > lastNettingRequestTime + 60 * 10) {
+            for (uint i = lastHandNetted + 1; i <= lastNettingRequestHandId; i++ ) {
+                for (uint j = 0; j < seats.length; j++) {
+                    int amount = int(seats[j].amount);
+                    amount += int(hands[i].outs[seats[j].addr]) - int(hands[i].ins[seats[j].addr]);
+                    seats[j].amount = uint96(amount);
+                }
+            }
+            lastHandNetted = lastNettingRequestHandId;
+            Netted(lastHandNetted);
+        }
+    }
+
+    function payout() {
+        uint pos = seatMap[msg.sender];
+        Seat seat = seats[pos];
+        if (lastHandNetted <  seat.lastHand)
+            throw;
+        token.transfer(msg.sender, seats[pos].amount);
+        delete seats[pos];
+    }
     
+    function _storeDist(bytes _receipt) internal returns (uint) {
+        //parse 
+        uint handId;
+        uint claimCount;
+        address[] memory addr;
+        uint96[] memory amount;
+        assembly {
+            handId := mload(add(_receipt, 36))
+            claimCount := mload(add(_receipt, 68))
+            //prepare loop
+            let i := 0
+            let len := mload(add(_receipt, 132))
+            //create addr array
+            addr := mload(0x40)
+            mstore(addr, 0x20)
+            addr := add(0x20, addr)
+            mstore(addr, len)
+            //create amount array
+            amount := add(0x40, add(addr, len))
+            mstore(amount, 0x20)
+            amount := add(0x20, amount)
+            mstore(amount, len)
+            mstore(0x40, add(amount, and(add(add(len, 0x20), 0x1f), not(0x1f))))
+            
+            loop:
+                jumpi(end, eq(i, len))
+                {
+                    i := add(i, 1)
+                    let elem := mload(add(_receipt, add(120, mul(i, 0x20))))
+                    mstore(add(addr, mul(i, 0x20)), elem)
+                    elem := mload(add(_receipt, add(132, mul(i, 0x20))))
+                    mstore(add(amount, mul(i, 0x20)), elem)
+                }
+                jump(loop)
+            end:
+        }
+        if (hands.length <= handId)
+            hands.length = handId + 1;
+        hands[handId].claimCount = uint128(claimCount);
+        //todo: delete both arrays before?
+        for (uint i = 0; i < addr.length; i ++) {
+            hands[handId].outs[addr[i]] = amount[i];
+        }
+    }
+    
+    function submitDists(bytes _dists, bytes _sigs) returns (uint) {
+        uint callPos = 0;
+        uint writeCount = 0;
+        for (uint elemPos = 0; elemPos < _sigs.length / 65; elemPos++) {
+            uint handId;
+            uint claimCount;
+            bytes memory receipt;
+            bytes32 r;
+            bytes32 s;
+            uint8 v;
+            assembly {
+                handId := mload(add(_dists, add(callPos, 36)))
+                claimCount := mload(add(_dists, add(callPos, 68)))
+                let len := add(mul(mload(add(_dists, add(callPos, 132))), 0x20), 132)
+                
+                //create bytes array
+                receipt := add(0x20, mload(0x40))
+                mstore(receipt, len)
+                mstore(0x40, add(receipt, and(add(add(len, 0x20), 0x1f), not(0x1f))))
+
+                calldatacopy(add(0x20, receipt), add(0x64, callPos), len)
+                callPos := add(callPos, len)
+                
+                r := mload(add(_sigs, add(32, mul(elemPos, 65))))
+                s := mload(add(_sigs, add(64, mul(elemPos, 65))))
+                v := mload(add(_sigs, add(65, mul(elemPos, 65))))
+            }
+            if (ecrecover(sha3(receipt), v, r, s) != oracle)
+                continue; //signed by oracle
+            if (handId <= lastHandNetted)
+                continue;
+            if (handId < hands.length && hands[handId].claimCount <= claimCount )
+                continue;
+            _storeDist(receipt);
+            writeCount++;
+        }
+        return writeCount;
+    }
+    
+    function submitBets(bytes _bets, bytes _sigs) returns (uint) {
+        uint writeCount = 0;
+        for (uint elemPos = 0; elemPos < _sigs.length / 65; elemPos++) {
+            bytes4 name;
+            uint handId;
+            uint96 amount;
+            address addr;
+            bytes32 r;
+            bytes32 s;
+            uint8 v;
+            assembly {
+                name := mload(add(_bets, add(4, mul(elemPos, 100))))
+                handId := mload(add(_bets, add(36, mul(elemPos, 100))))
+                amount := mload(add(_bets, add(68, mul(elemPos, 100))))
+                addr := mload(add(_bets, add(100, mul(elemPos, 100))))
+                
+                r := mload(add(_sigs, add(32, mul(elemPos, 65))))
+                s := mload(add(_sigs, add(64, mul(elemPos, 65))))
+                v := mload(add(_sigs, add(65, mul(elemPos, 65))))
+            }
+            //todo: implement to check name
+            if (ecrecover(sha3(name, handId, amount), v, r, s) != addr)
+                continue;
+            if (handId <= lastHandNetted || handId >= hands.length)
+                continue;
+            if (hands[handId].ins[addr] >= amount)
+                continue;
+            hands[handId].ins[addr] = amount;
+            writeCount++;
+        }
+        return writeCount;
+    }
+
+
 }
