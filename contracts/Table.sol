@@ -123,7 +123,7 @@ contract Table {
             throw;
         }
         
-        //no beggers
+        //no beggars
         if (token.balanceOf(msg.sender) < _buyIn) {
             throw;
         }
@@ -133,7 +133,7 @@ contract Table {
             if (seats[i].addr == msg.sender)
                 throw;
         
-        //check capacity and state
+        //seat player
         for (i = 0; i < seats.length; i++ ) {
             if (seats[i].amount == 0) {
                 if (token.transferFrom(msg.sender, this, _buyIn)) {
