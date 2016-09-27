@@ -1,4 +1,4 @@
-//pragma solidity ^0.4.1;
+//pragma solidity ^0.4.2;
 import "Token.sol";
 
 contract Table {
@@ -9,7 +9,7 @@ contract Table {
     event NettingRequest(uint hand);
     event Netted(uint hand);
     
-    address oracle = 0xf3beac30c498d9e26865f34fcaa57dbb935b0d74;
+    address public oracle;
     
     struct Hand {
         //in
@@ -27,15 +27,19 @@ contract Table {
     }
     
     Hand[] hands;
-    Seat[] seats;
+    Seat[] public seats;
     mapping(address => uint) seatMap;
     uint public lastHandNetted;
     
     uint public lastNettingRequestHandId;
     uint public lastNettingRequestTime;
     
-    function Table() {
-        seats.length = 10;
+    function Table(address _token, address _oracle, uint _minBuyIn, uint _maxBuyIn, uint _seats) {
+        token = Token(_token);
+        oracle = _oracle;
+        minBuyIn = _minBuyIn;
+        maxBuyIn = _maxBuyIn;
+        seats.length = _seats;
         lastHandNetted = 0;
     }
     
@@ -69,20 +73,19 @@ contract Table {
             addr := add(0x20, addr)
             mstore(addr, len)
             //create amount array
-            amount := add(0x40, add(addr, len))
+            amount := add(addr, mul(len, 0x20))
             mstore(amount, 0x20)
             amount := add(0x20, amount)
             mstore(amount, len)
-            mstore(0x40, add(amount, and(add(add(len, 0x20), 0x1f), not(0x1f))))
-            
+            mstore(0x40, add(amount, and(add(mul(add(len, 1), 0x20), 0x1f), not(0x1f))))
             loop:
                 jumpi(end, eq(i, len))
                 {
-                    i := add(i, 1)
                     let elem := mload(add(_newBalances, add(120, mul(i, 0x20))))
-                    mstore(add(addr, mul(i, 0x20)), elem)
+                    mstore(add(addr, add(32, mul(i, 0x20))), elem)
                     elem := mload(add(_newBalances, add(132, mul(i, 0x20))))
-                    mstore(add(amount, mul(i, 0x20)), elem)
+                    mstore(add(amount, add(32, mul(i, 0x20))), elem)
+                    i := add(i, 1)
                 }
                 jump(loop)
             end:
@@ -116,6 +119,8 @@ contract Table {
         Netted(handId);
     }
     
+    event Join(address addr, bytes32 conn, uint256 amount);
+    
     function join(uint96 _buyIn, bytes32 _conn) {
         
         //check the dough
@@ -124,7 +129,7 @@ contract Table {
         }
         
         //no beggars
-        if (token.balanceOf(msg.sender) < _buyIn) {
+        if (token.balanceOf(msg.sender) < _buyIn || token.allowance(msg.sender, this) < _buyIn) {
             throw;
         }
         
@@ -140,9 +145,11 @@ contract Table {
                     seats[i].addr = msg.sender;
                     seats[i].amount = _buyIn;
                     seats[i].conn = _conn;
+                    seatMap[msg.sender] = i;
+                    Join(msg.sender, _conn, _buyIn);
                 }
+                break;
             }
-            break;
         }
     }
     
@@ -162,14 +169,14 @@ contract Table {
             s := mload(add(_leaveReceipt, 132))
             v := mload(add(_leaveReceipt, 133))
         }
-        name = 0x6c28a3a9; //todo: fix
+        name = 0xf29953b7; //todo: fix
         address signer = ecrecover(sha3(name, handId, bytes32(leaver)), v, r, s);
         if (signer != oracle)
             throw;
 
         seats[seatMap[leaver]].lastHand = handId;
         //create new netting request
-        if (lastNettingRequestHandId < handId) {
+        if (lastHandNetted < handId && lastNettingRequestHandId < handId) {
             NettingRequest(handId);
             lastNettingRequestHandId = handId;
             lastNettingRequestTime = now;
