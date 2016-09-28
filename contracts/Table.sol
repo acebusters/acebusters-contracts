@@ -2,10 +2,12 @@
 import "Token.sol";
 
 contract Table {
+
     Token token;
     uint public minBuyIn;
     uint public maxBuyIn;
-    
+
+    event Join(address addr, bytes32 conn, uint256 amount);
     event NettingRequest(uint hand);
     event Netted(uint hand);
     
@@ -39,22 +41,30 @@ contract Table {
         oracle = _oracle;
         minBuyIn = _minBuyIn;
         maxBuyIn = _maxBuyIn;
-        seats.length = _seats;
+        seats.length = _seats + 1;
         lastHandNetted = 0;
     }
     
     function getLineup() constant returns (address[] addr, uint96[] amount, bytes32[] conn) {
-        addr = new address[](seats.length);
-        amount = new uint96[](seats.length);
-        conn = new bytes32[](seats.length);
-        for (uint i = 0; i < seats.length; i++) {
+        addr = new address[](seats.length - 1);
+        amount = new uint96[](seats.length - 1);
+        conn = new bytes32[](seats.length - 1);
+        for (uint i = 1; i < seats.length; i++) {
             if (seats[i].amount > 0 && seats[i].lastHand == 0) {
-                addr[i] = seats[i].addr;
-                amount[i] = seats[i].amount;
-                conn[i] = seats[i].conn;
+                addr[i - 1] = seats[i].addr;
+                amount[i - 1] = seats[i].amount;
+                conn[i - 1] = seats[i].conn;
             }
         }
         return (addr, amount, conn);
+    }
+    
+    function getIn(uint _handId, address _addr) constant returns (uint96) {
+        return hands[_handId].ins[_addr];
+    }
+    
+    function getOut(uint _handId, address _addr) constant returns (uint96, uint) {
+        return (hands[_handId].outs[_addr], hands[_handId].claimCount);
     }
     
     function settle(bytes _newBalances, bytes _sigs) returns (bool) {
@@ -104,7 +114,7 @@ contract Table {
         
         //check sigs
         bool allSigned = true;
-        for (i = 0; i < seats.length; i++)
+        for (i = 1; i < seats.length; i++)
             if(seats[i].amount > 0)
                 allSigned == allSigned && (hasSigned[seats[i].addr] > 0);
         allSigned = (hasSigned[oracle] > 0);
@@ -112,14 +122,12 @@ contract Table {
             throw;
         
         //set new balances
-        for (i = 0; i < seats.length; i++) {
+        for (i = 1; i < seats.length; i++) {
             seats[i].amount = hasSigned[seats[i].addr];
         }
         lastHandNetted = handId;
         Netted(handId);
     }
-    
-    event Join(address addr, bytes32 conn, uint256 amount);
     
     function join(uint96 _buyIn, bytes32 _conn) {
         
@@ -134,12 +142,12 @@ contract Table {
         }
         
         //avoid duplicate players
-        for (uint i = 0; i < seats.length; i++ )
+        for (uint i = 1; i < seats.length; i++ )
             if (seats[i].addr == msg.sender)
                 throw;
         
         //seat player
-        for (i = 0; i < seats.length; i++ ) {
+        for (i = 1; i < seats.length; i++ ) {
             if (seats[i].amount == 0) {
                 if (token.transferFrom(msg.sender, this, _buyIn)) {
                     seats[i].addr = msg.sender;
@@ -186,7 +194,7 @@ contract Table {
     function net() {
         if (now  > lastNettingRequestTime + 60 * 10) {
             for (uint i = lastHandNetted + 1; i <= lastNettingRequestHandId; i++ ) {
-                for (uint j = 0; j < seats.length; j++) {
+                for (uint j = 1; j < seats.length; j++) {
                     int amount = int(seats[j].amount);
                     amount += int(hands[i].outs[seats[j].addr]) - int(hands[i].ins[seats[j].addr]);
                     seats[j].amount = uint96(amount);
@@ -202,7 +210,8 @@ contract Table {
         Seat seat = seats[pos];
         if (lastHandNetted <  seat.lastHand)
             throw;
-        token.transfer(msg.sender, seats[pos].amount);
+        if (!token.transfer(msg.sender, seats[pos].amount))
+            throw;
         delete seats[pos];
     }
     
@@ -296,22 +305,21 @@ contract Table {
             bytes4 name;
             uint handId;
             uint96 amount;
-            address addr;
             bytes32 r;
             bytes32 s;
             uint8 v;
             assembly {
-                name := mload(add(_bets, add(4, mul(elemPos, 100))))
-                handId := mload(add(_bets, add(36, mul(elemPos, 100))))
-                amount := mload(add(_bets, add(68, mul(elemPos, 100))))
-                addr := mload(add(_bets, add(100, mul(elemPos, 100))))
+                name := mload(add(_bets, add(4, mul(elemPos, 68))))
+                handId := mload(add(_bets, add(36, mul(elemPos, 68))))
+                amount := mload(add(_bets, add(68, mul(elemPos, 68))))
                 
                 r := mload(add(_sigs, add(32, mul(elemPos, 65))))
                 s := mload(add(_sigs, add(64, mul(elemPos, 65))))
                 v := mload(add(_sigs, add(65, mul(elemPos, 65))))
             }
             //todo: implement to check name
-            if (ecrecover(sha3(name, handId, amount), v, r, s) != addr)
+            address addr = ecrecover(sha3(name, handId, amount), v, r, s);
+            if (seatMap[addr] == 0)
                 continue;
             if (handId <= lastHandNetted || handId >= hands.length)
                 continue;
@@ -322,6 +330,5 @@ contract Table {
         }
         return writeCount;
     }
-
 
 }
