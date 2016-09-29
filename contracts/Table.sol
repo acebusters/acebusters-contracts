@@ -191,8 +191,8 @@ contract Table {
         }
     }
     
-    function net() {
-        if (now  > lastNettingRequestTime + 60 * 10) {
+    function net(uint _now) {
+        if (_now  > lastNettingRequestTime + 60 * 10) {
             for (uint i = lastHandNetted + 1; i <= lastNettingRequestHandId; i++ ) {
                 for (uint j = 1; j < seats.length; j++) {
                     int amount = int(seats[j].amount);
@@ -233,20 +233,20 @@ contract Table {
             addr := add(0x20, addr)
             mstore(addr, len)
             //create amount array
-            amount := add(0x40, add(addr, len))
+            amount := add(addr, mul(len, 0x20))
             mstore(amount, 0x20)
             amount := add(0x20, amount)
             mstore(amount, len)
-            mstore(0x40, add(amount, and(add(add(len, 0x20), 0x1f), not(0x1f))))
+            mstore(0x40, add(amount, and(add(mul(add(len, 1), 0x20), 0x1f), not(0x1f))))
             
             loop:
                 jumpi(end, eq(i, len))
                 {
+                    let elem := mload(add(_receipt, add(152, mul(i, 0x20))))
+                    mstore(add(addr, add(32, mul(i, 0x20))), elem)
+                    elem := mload(add(_receipt, add(164, mul(i, 0x20))))
+                    mstore(add(amount, add(32, mul(i, 0x20))), elem)
                     i := add(i, 1)
-                    let elem := mload(add(_receipt, add(120, mul(i, 0x20))))
-                    mstore(add(addr, mul(i, 0x20)), elem)
-                    elem := mload(add(_receipt, add(132, mul(i, 0x20))))
-                    mstore(add(amount, mul(i, 0x20)), elem)
                 }
                 jump(loop)
             end:
@@ -291,7 +291,7 @@ contract Table {
                 continue; //signed by oracle
             if (handId <= lastHandNetted)
                 continue;
-            if (handId < hands.length && hands[handId].claimCount <= claimCount )
+            if (handId < hands.length && claimCount <= hands[handId].claimCount)
                 continue;
             _storeDist(receipt);
             writeCount++;
@@ -302,7 +302,7 @@ contract Table {
     function submitBets(bytes _bets, bytes _sigs) returns (uint) {
         uint writeCount = 0;
         for (uint elemPos = 0; elemPos < _sigs.length / 65; elemPos++) {
-            bytes4 name;
+            uint32 name;
             uint handId;
             uint96 amount;
             bytes32 r;
@@ -318,7 +318,7 @@ contract Table {
                 v := mload(add(_sigs, add(65, mul(elemPos, 65))))
             }
             //todo: implement to check name
-            address addr = ecrecover(sha3(name, handId, amount), v, r, s);
+            address addr = ecrecover(sha3(bytes4(name), handId, uint(amount)), v, r, s);
             if (seatMap[addr] == 0)
                 continue;
             if (handId <= lastHandNetted || handId >= hands.length)
