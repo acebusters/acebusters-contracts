@@ -1,25 +1,5 @@
 contract('Table', function(accounts) {
 
-  it("should join table with min buyIn.", function(done) {
-
-    var token = Token.deployed();
-    var table;
-    var watcher;
-
-    Table.new(token.address, '0xf3beac30c498d9e26865f34fcaa57dbb935b0d74', 4000, 8000, 6).then(function(contract) {
-      table = contract;
-      watcher = contract.Join();
-      return table.minBuyIn.call();
-    }).then(function(buyIn) {
-      return table.join(buyIn, "test");
-    }).then(function(txHash){
-      return table.seats.call(1);
-    }).then(function(seat){
-      assert.equal(seat[0], accounts[0], 'join failed.');
-    }).then(done).catch(done);
-
-  });
-
   it("should join table, then settle, then leave.", function(done) {
 
     var token = Token.deployed();
@@ -33,9 +13,13 @@ contract('Table', function(accounts) {
     }).then(function(){
       return table.join(355360, "test2", {from: accounts[1]});
     }).then(function(txHash){
+      return table.seats.call(1);
+    }).then(function(seat){
+      assert.equal(seat[0], accounts[0], 'join failed.');
       return table.seats.call(2);
     }).then(function(seat){
       assert.equal(seat[0], accounts[1], 'join failed.');
+      //leave(uint handId, address addr)
       var leaveReceipt = '0xf29953b70000000000000000000000000000000000000000000000000000000000000003000000000000000000000000e10f3d125e5f4c753a6456fc37123cf17c6900f235708bb835136cb327d4c916e2567f78eff166027c389112d9360cfe5312e7c65ed04ebbfe7b2205dc75d1c1fd816214db7cca8a3d7fac024cad9c60d48df82b1b';
       return table.leave(leaveReceipt);
     }).then(function(txHash){
@@ -69,19 +53,6 @@ contract('Table', function(accounts) {
 
     var token = Token.deployed();
     var table;
-
-    //bet 10000 pl_1 hand 0
-    //msg: '6ffcc71900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002710'
-    //sig: 'db58dbd768d95552bf61f30b9021bd8b3238fe050b74811afcc8a61675093a804fe20e2d20535ece664a119c7886bb9ee888c6e71a6593eb5774ab85893e8c5e1c'
-    //bet 8000 pl_1 hand 0
-    //msg: '6ffcc71900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001f40'
-    //sig: 8dabca7b1755b6062dfdc3fd4de04d1dc8a1541c7d5ebe0118f6b0feb4620d3610aa49937a88cfe1eeaf6587d04b82765183a79a59382253a3e6ea68f14a95e01b
-    //bet 12000 pl_2 hand 0
-    //msg: '6ffcc719000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000032c8'
-    //sig: a8fcb8ccb9f87c620de294db45b5dd2cf94f6a6fba4e73bcc63bcde5a5b05c037d7bcb51110907d6595428d163cdd2cd8353a3f6e4a02e0f8c06f420c16edd401c
-    //dist 11000 each hand 0 claim 0
-    //msg: '9dd00b590000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000002f3beac30c498d9e26865f34fcaa57dbb935b0d74000000000000000000002af8e10f3d125e5f4c753a6456fc37123cf17c6900f2000000000000000000002af8'
-    //sig: 613925411327cd0dbcdead791915a0fa4a97484c6c8ca3b650ce7007c3958b1524ea6abb6b62994c931c376dc49a9960a7dd52e4d48d42a187094ba36a7bbfb21b
 
     //bet 12000 pl_1 hand 1
     var bet11 = '6ffcc71900000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000002ee0';

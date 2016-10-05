@@ -45,18 +45,18 @@ contract Table {
         lastHandNetted = 0;
     }
     
-    function getLineup() constant returns (address[] addr, uint96[] amount, bytes32[] conn) {
+    function getLineup() constant returns (uint, address[] addr, uint[] amount, uint[] lastHand) {
         addr = new address[](seats.length - 1);
-        amount = new uint96[](seats.length - 1);
-        conn = new bytes32[](seats.length - 1);
+        amount = new uint[](seats.length - 1);
+        lastHand = new uint[](seats.length - 1);
         for (uint i = 1; i < seats.length; i++) {
             if (seats[i].amount > 0 && seats[i].lastHand == 0) {
                 addr[i - 1] = seats[i].addr;
                 amount[i - 1] = seats[i].amount;
-                conn[i - 1] = seats[i].conn;
+                lastHand[i - 1] = seats[i].lastHand;
             }
         }
-        return (addr, amount, conn);
+        return (lastHandNetted, addr, amount, lastHand);
     }
     
     function getIn(uint _handId, address _addr) constant returns (uint96) {
@@ -162,7 +162,7 @@ contract Table {
     }
     
     function leave(bytes _leaveReceipt) returns (address) {
-        bytes4 name;
+        uint32 name;
         uint handId;
         address leaver;
         uint8 v;
@@ -177,8 +177,7 @@ contract Table {
             s := mload(add(_leaveReceipt, 132))
             v := mload(add(_leaveReceipt, 133))
         }
-        name = 0xf29953b7; //todo: fix
-        address signer = ecrecover(sha3(name, handId, bytes32(leaver)), v, r, s);
+        address signer = ecrecover(sha3(bytes4(name), handId, bytes32(leaver)), v, r, s);
         if (signer != oracle)
             throw;
 
