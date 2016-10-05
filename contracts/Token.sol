@@ -56,18 +56,22 @@ contract Token {
     }
     
     function issue(uint _value) onlyOwner returns (bool success) {
-        if (balanceOf(msg.sender) + _value > balanceOf(msg.sender)) {
-            balances[msg.sender] += _value;
-            totalSupply += _value;
-            Issuance(msg.sender, _value);
-            return true;
+        if (_value <= 0) {
+            Error(msg.sender, 5);
+            return;
         }
-        Error(msg.sender, 4);
-        return false;
+        if (totalSupply + _value <= totalSupply) {
+            Error(msg.sender, 4);
+            return;
+        }
+        balances[msg.sender] += _value;
+        totalSupply += _value;
+        Issuance(msg.sender, _value);
+        return true;
     }
     
     function revoke(uint _value) onlyOwner returns (bool success) {
-        if (balanceOf(msg.sender) >= _value && _value > 0) {
+        if (balances[msg.sender] >= _value && _value > 0) {
             balances[msg.sender] -= _value;
             totalSupply -= _value;
             Revoke(msg.sender, _value);
@@ -82,11 +86,15 @@ contract Token {
     /// @param _value The amount of token to be transferred
     /// @return Whether the transfer was successful or not
     function transfer(address _to, uint256 _value) returns (bool success) {
-        if (balanceOf(_to) + _value < balanceOf(_to)) {
+        if (msg.sender == _to) {
+            Error(msg.sender, 5);
+            return false;
+        }
+        if (balances[_to] + _value < balances[_to]) {
             Error(msg.sender, 4);
             return false;
         }
-        if (balanceOf(msg.sender) >= _value && _value > 0) {
+        if (balances[msg.sender] >= _value && _value > 0) {
             balances[msg.sender] -= _value;
             balances[_to] += _value;
             Transfer(msg.sender, _to, _value);
@@ -102,15 +110,15 @@ contract Token {
     /// @param _value The amount of token to be transferred
     /// @return Whether the transfer was successful or not
     function transferFrom(address _from, address _to, uint256 _value) returns (bool success) {
-        if (msg.sender == _from) {
-            Error(msg.sender, 5); //use transfer instead.
+        if (msg.sender == _from || _from == _to) {
+            Error(msg.sender, 5);
             return false;
         }
-        if (balanceOf(_to) + _value < balanceOf(_to)) {
+        if (balances[_to] + _value < balances[_to]) {
             Error(msg.sender, 4);
             return false;
         }
-        if (balanceOf(_from) >= _value && allowance(_from, msg.sender) >= _value && _value > 0) {
+        if (balances[_from] >= _value && allowed[_from][msg.sender] >= _value && _value > 0) {
             balances[_to] += _value;
             balances[_from] -= _value;
             allowed[_from][msg.sender] -= _value;
@@ -126,6 +134,10 @@ contract Token {
     /// @param _value The amount of wei to be approved for transfer
     /// @return Whether the approval was successful or not
     function approve(address _spender, uint256 _value) returns (bool success) {
+        if (msg.sender == _spender) {
+            Error(msg.sender, 5);
+            return false;
+        }
         allowed[msg.sender][_spender] = _value;
         Approval(msg.sender, _spender, _value);
         return true;

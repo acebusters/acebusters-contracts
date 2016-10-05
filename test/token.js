@@ -52,9 +52,46 @@ contract('Token', function(accounts) {
 
   it('should allow to read balance of new account.');
 
-  it('should prevent to issue 0.');
+  it('should prevent to issue 0.', function(done) {
+    var owner = accounts[0];
+    var watcher, token;
+    Token.new().then(function(contract) {
+      token = contract;
+      watcher = token.Error();
+      return token.issue(0);
+    }).then(function(txHash) {
+      return promisify(watcher);
+    }).then(function(events) {
+      assert.equal(events.length, 1, 'unwanted transfer succeeded.');
+      assert.equal(events[0].event, 'Error', 'unwanted transfer succeeded.');
+      assert.equal(events[0].args.code.toNumber(), 5, 'unwanted transfer succeeded.');
+      return token.balanceOf.call(owner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), 0);
+    }).then(done).catch(done);
+  });
 
-  it('should prevent to issue total supply overflow.');
+  it('should prevent to issue total supply overflow.', function(done) {
+    var owner = accounts[0];
+    var amount = 0;
+    var watcher, token;
+    Token.new().then(function(contract) {
+      token = contract;
+      watcher = token.Error();
+      return token.issue(UINT_256_MINUS_1);
+    }).then(function(txHash) {
+      return token.issue(10);
+    }).then(function(txHash) {
+      return promisify(watcher);
+    }).then(function(events) {
+      assert.equal(events.length, 1, 'unwanted transfer succeeded.');
+      assert.equal(events[0].event, 'Error', 'unwanted transfer succeeded.');
+      assert.equal(events[0].args.code.toNumber(), 4, 'unwanted transfer succeeded.');
+      return token.balanceOf.call(owner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), UINT_256_MINUS_1);
+    }).then(done).catch(done);
+  });
 
   it('should not be possible to revoke 1 with balance 0');
 
@@ -73,11 +110,77 @@ contract('Token', function(accounts) {
 
   it('should allow to transfer amount, then read balance.');
 
-  it('should prevent to transfer 0 amount.');
+  it('should not be possible to transfer amount 0', function(done) {
+    var owner = accounts[0];
+    var nonOwner = accounts[1];
+    var amount = 0;
+    var watcher, token;
+    Token.new().then(function(contract) {
+      token = contract;
+      watcher = token.Error();
+      return token.issue(VALUE);
+    }).then(function(txHash) {
+      return token.transfer(nonOwner, amount);
+    }).then(function(txHash) {
+      return promisify(watcher);
+    }).then(function(events) {
+      assert.equal(events.length, 1, 'unwanted transfer succeeded.');
+      assert.equal(events[0].event, 'Error', 'unwanted transfer succeeded.');
+      assert.equal(events[0].args.code.toNumber(), 3, 'unwanted transfer succeeded.');
+      return token.balanceOf.call(nonOwner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), 0);
+      return token.balanceOf.call(owner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), VALUE);
+    }).then(done).catch(done);
+  });
 
-  it('should prevent to transfer amount larger balance.');
+  it('should not be possible to transfer amount 2 with balance 1', function(done) {
+    var owner = accounts[0];
+    var nonOwner = accounts[1];
+    var value = 1;
+    var amount = 2;
+    var token;
+    Token.new().then(function(contract) {
+      token = contract;
+      return token.issue(value);
+    }).then(function(txHash) {
+      return token.transfer(nonOwner, amount);
+    }).then(function() {
+      return token.balanceOf.call(nonOwner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), 0);
+      return token.balanceOf.call(owner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), value);
+    }).then(done).catch(done);
+  });
 
-  it('should not be possible to transfer to oneself');
+  it('should not be possible to transfer to oneself', function(done) {
+    var owner = accounts[0];
+    var amount = 100;
+    var watcher, token;
+    Token.new().then(function(contract) {
+      token = contract;
+      watcher = token.Error();
+      return token.issue(VALUE);
+    }).then(function(txHash) {
+      return token.transfer(owner, amount);
+    }).then(function(txHash) {
+      return promisify(watcher);
+    }).then(function(events) {
+      assert.equal(events.length, 1, 'unwanted transfer succeeded.');
+      assert.equal(events[0].event, 'Error', 'unwanted transfer succeeded.');
+      assert.equal(events[0].args.code.toNumber(), 5, 'unwanted transfer succeeded.');
+      return token.balanceOf.call(owner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), VALUE);
+      return token.balanceOf.call(owner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), VALUE);
+    }).then(done).catch(done);
+  });
 
   it('should be possible to transfer amount 1 to existing holder with 0 balance');
 
@@ -85,7 +188,26 @@ contract('Token', function(accounts) {
 
   it('should be possible to transfer amount 1 to holder with non-zero balance');
 
-  it('should not be possible to set allowance for oneself');
+  it('should not be possible to set allowance for oneself', function(done) {
+    var owner = accounts[0];
+    var watcher, token;
+    Token.new().then(function(contract) {
+      token = contract;
+      watcher = token.Error();
+      return token.issue(VALUE);
+    }).then(function(txHash) {
+      return token.approve(owner, 100);
+    }).then(function(txHash) {
+      return promisify(watcher);
+    }).then(function(events) {
+      assert.equal(events.length, 1, 'unwanted transfer succeeded.');
+      assert.equal(events[0].event, 'Error', 'unwanted transfer succeeded.');
+      assert.equal(events[0].args.code.toNumber(), 5, 'unwanted transfer succeeded.');
+      return token.allowance.call(owner, owner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), 0);
+    }).then(done).catch(done);
+  });
 
   it('should be possible to set allowance from missing holder to missing holder');
 
@@ -113,9 +235,50 @@ contract('Token', function(accounts) {
 
   it('should not be possible to do allowance transfer by not allowed missing spender, from existing holder');
 
-  it('should not be possible to do allowance transfer by not allowed missing spender, from missing holder');
+  it('should not be possible to do allowance transfer by not allowed missing spender, from missing holder', function(done) {
+    var token;
+    var holder = accounts[2];
+    var spender = accounts[1];
+    var expectedSpenderBalance = 0;
+    var expectedHolderBalance = 0;
+    Token.new().then(function(contract) {
+      token = contract;
+      return token.issue(VALUE);
+    }).then(function() {
+      return token.transferFrom(holder, spender, 50, {from: spender});
+    }).then(function() {
+      return token.balanceOf.call(spender);
+    }).then(function(result) {
+      assert.equal(result.toNumber(), expectedSpenderBalance);
+      return token.balanceOf.call(holder);
+    }).then(function(result) {
+      assert.equal(result.toNumber(), expectedHolderBalance);
+    }).then(done).catch(done);
+  });
 
-  it('should not be possible to do allowance transfer from and to the same holder');
+  it('should not be possible to do allowance transfer from and to the same holder', function(done) {
+    var holder = accounts[0];
+    var spender = accounts[1];
+    var watcher, token;
+    Token.new().then(function(contract) {
+      token = contract;
+      watcher = token.Error();
+      return token.issue(VALUE);
+    }).then(function() {
+      return token.approve(spender, 50);
+    }).then(function() {
+      return token.transferFrom(holder, holder, 50, {from: spender});
+    }).then(function(txHash) {
+      return promisify(watcher);
+    }).then(function(events) {
+      assert.equal(events.length, 1, 'unwanted transfer succeeded.');
+      assert.equal(events[0].event, 'Error', 'unwanted transfer succeeded.');
+      assert.equal(events[0].args.code.toNumber(), 5, 'unwanted transfer succeeded.');
+      return token.balanceOf.call(holder);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), VALUE);
+    }).then(done).catch(done);
+  });
 
   it('should not be possible to do allowance transfer from oneself', function(done) {
     var holder = accounts[0];
@@ -144,9 +307,59 @@ contract('Token', function(accounts) {
     }).then(done).catch(done);
   });
 
-  it('should not be possible to do allowance transfer with 0 value');
+  it('should not be possible to do allowance transfer with 0 value', function(done) {
+    var holder = accounts[0];
+    var spender = accounts[1];
+    var value = 0;
+    var resultValue = 0;
+    var watcher, token;
+    Token.new().then(function(contract) {
+      token = contract;
+      watcher = token.Error();
+      return token.issue(VALUE);
+    }).then(function() {
+      return token.approve(spender, 100);
+    }).then(function() {
+      return token.transferFrom(holder, spender, value, {from: spender});
+    }).then(function(txHash) {
+      return promisify(watcher);
+    }).then(function(events) {
+      assert.equal(events.length, 1, 'unwanted transfer succeeded.');
+      assert.equal(events[0].event, 'Error', 'unwanted transfer succeeded.');
+      assert.equal(events[0].args.code.toNumber(), 3, 'unwanted transfer succeeded.');
+      return token.balanceOf.call(holder);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), VALUE);
+      return token.balanceOf.call(spender);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), resultValue);
+    }).then(done).catch(done);
+  });
 
-  it('should not be possible to do allowance transfer with value less than balance, more than allowed');
+  it('should not be possible to do allowance transfer with value less than balance, more than allowed', function(done) {
+    var token;
+    var holder = accounts[0];
+    var spender = accounts[1];
+    var balance = 1000;
+    var value = 999;
+    var allowed = 998;
+    var resultValue = 0;
+    Token.new().then(function(contract) {
+      token = contract;
+      return token.issue(balance);
+    }).then(function() {
+      return token.approve(spender, allowed);
+    }).then(function() {
+      return token.transferFrom(holder, spender, value, {from: spender});
+    }).then(function() {
+      return token.balanceOf.call(holder);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), balance);
+      return token.balanceOf.call(spender);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), resultValue);
+    }).then(done).catch(done);
+  });
 
   it('should not be possible to do allowance transfer with value equal to balance, more than allowed', function(done) {
     var token;
