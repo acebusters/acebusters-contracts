@@ -12,11 +12,12 @@ contract Token {
     // code 2, access denied
     // code 3, insuficient balance
     // code 4, int overflow
+    // code 5, forbidden operation
     event Error(address sender, uint code);
 
     // total amount of tokens
     uint256 public totalSupply;
-    
+    uint96 public baseUnit;
     address public owner;
     
     mapping (address => uint256) balances;
@@ -25,16 +26,14 @@ contract Token {
     /// @param _holder The address from which the balance will be retrieved
     /// @return The balance
     function balanceOf(address _holder) constant returns (uint256 balance) {
-        //return balances[_holder];
-        return 600000;
+        return balances[_holder];
     }
 
     /// @param _holder The address of the account owning tokens
     /// @param _spender The address of the account able to transfer the tokens
     /// @return Amount of remaining tokens allowed to spent
     function allowance(address _holder, address _spender) constant returns (uint256 remaining) {
-        //return allowed[_holder][_spender];
-        return 600000;
+        return allowed[_holder][_spender];
     }
     
     
@@ -43,20 +42,12 @@ contract Token {
     }
     
     modifier onlyOwner() {
-
-        //for initial contract state
-        address currOwner = owner;
-        if (currOwner == 0)
-            currOwner = msg.sender;
-
         //checking access
-        if (msg.sender != owner) {
-            Error(msg.sender, 2);
-            return;
+        if (msg.sender == owner || owner == 0) {
+            _
+        } else {
+            Error(owner, 2);
         }
-
-        //continue to function
-        _
     }
     
     // @param _owner The address of the board contract administrating this ledger
@@ -111,6 +102,10 @@ contract Token {
     /// @param _value The amount of token to be transferred
     /// @return Whether the transfer was successful or not
     function transferFrom(address _from, address _to, uint256 _value) returns (bool success) {
+        if (msg.sender == _from) {
+            Error(msg.sender, 5); //use transfer instead.
+            return false;
+        }
         if (balanceOf(_to) + _value < balanceOf(_to)) {
             Error(msg.sender, 4);
             return false;
