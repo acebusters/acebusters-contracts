@@ -29,28 +29,61 @@ contract('Token', function(accounts) {
   var BASE_UNIT = 2;
   var VALUE = 1001;
 
-  it('should allow to configure contract.');
-  //set new owner
-  //set base unit
-
-  it('should prevent configure by non owner.');
-
-  it('should prevent to set 0x00 owner address.');
-
-  it('should allow to issue and read balance.', function(done) {
-    var token;
-    var amount = 40000;
-    Token.new().then(function(contract) {
+  it('should allow to change owner only by owner.', function(done) {
+    var owner = accounts[0];
+    var watcher, token;
+    Token.new(owner, 2).then(function(contract) {
       token = contract;
-      return token.issue(amount);
-    }).then(function(txHash){
-      return token.balanceOf(accounts[0]);
-    }).then(function(bal){
-      assert.equal(bal, amount, 'issuance failed.');
+      watcher = token.Error();
+      return token.changeOwner(accounts[1]);
+    }).then(function(txHash) {
+      return token.owner.call();
+    }).then(function(newOwner) {
+      assert.equal(newOwner, accounts[1], 'owner change failed.');
+      return token.changeOwner(accounts[0]);
+    }).then(function(txHash) {
+      return promisify(watcher);
+    }).then(function(events) {
+      assert.equal(events.length, 1, 'unwanted change succeeded.');
+      assert.equal(events[0].event, 'Error', 'unwanted change succeeded.');
+      assert.equal(events[0].args.code.toNumber(), 2, 'unwanted change succeeded.');
     }).then(done).catch(done);
   });
 
-  it('should allow to read balance of new account.');
+  it('should prevent to set 0x00 owner address.', function(done) {
+    var owner = accounts[0];
+    var watcher, token;
+    Token.new(owner, 2).then(function(contract) {
+      token = contract;
+      watcher = token.Error();
+      return token.changeOwner(bytes32(0));
+    }).then(function(txHash) {
+      return promisify(watcher);
+    }).then(function(events) {
+      assert.equal(events.length, 1, 'unwanted change succeeded.');
+      assert.equal(events[0].event, 'Error', 'unwanted change succeeded.');
+      assert.equal(events[0].args.code.toNumber(), 5, 'unwanted change succeeded.');
+    }).then(done).catch(done);
+  });
+
+  it('should allow to issue, then read baseUnit, and balance of know and unknown account.', function(done) {
+    var token;
+    var amount = 40000;
+    Token.new(accounts[0], 2).then(function(contract) {
+      token = contract;
+      return token.issue(amount);
+    }).then(function(txHash){
+      return token.balanceOf.call(accounts[0]);
+    }).then(function(bal){
+      assert.equal(bal, amount, 'issuance failed.');
+      return token.balanceOf.call(accounts[1]);
+    }).then(function(bal){
+      assert.equal(bal, 0, 'balance failed.');
+      return token.baseUnit.call();
+    }).then(function(base){
+      assert.equal(base, 2, 'base unit wrong.');
+    }).then(done).catch(done);
+  });
 
   it('should prevent to issue 0.', function(done) {
     var owner = accounts[0];
@@ -93,20 +126,139 @@ contract('Token', function(accounts) {
     }).then(done).catch(done);
   });
 
-  it('should not be possible to revoke 1 with balance 0');
+  it('should not be possible to revoke 1 with balance 0', function(done) {
+    var owner = accounts[0];
+    var value = 0;
+    var amount = 1;
+    var isReissuable = true;
+    var watcher, token;
+    Token.new().then(function(contract) {
+      token = contract;
+      watcher = token.Error();
+      return token.issue(value);
+    }).then(function(txHash) {
+      return token.revoke(amount);
+    }).then(function(txHash) {
+      return promisify(watcher);
+    }).then(function(events) {
+      assert.equal(events.length, 1);
+      assert.equal(events[0].event, 'Error', 'unwanted revoke succeeded.');
+      assert.equal(events[0].args.code.toNumber(), 3, 'unwanted revoke succeeded.');
+      return token.balanceOf.call(owner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), value);
+      return token.totalSupply.call();
+    }).then(function(result) {
+      assert.equal(result.valueOf(), value);
+    }).then(done).catch(done);
+  });
 
-  it('should not be possible to revoke 2 with balance 1');
+  it('should not be possible to revoke 2 with balance 1', function(done) {
+    var owner = accounts[0];
+    var value = 1;
+    var amount = 2;
+    var watcher, token;
+    Token.new().then(function(contract) {
+      token = contract;
+      watcher = token.Error();
+      return token.issue(value);
+    }).then(function(txHash) {
+      return token.revoke(amount);
+    }).then(function(txHash) {
+      return promisify(watcher);
+    }).then(function(events) {
+      assert.equal(events.length, 1);
+      assert.equal(events[0].event, 'Error', 'unwanted revoke succeeded.');
+      assert.equal(events[0].args.code.toNumber(), 3, 'unwanted revoke succeeded.');
+      return token.balanceOf.call(owner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), value);
+      return token.totalSupply.call();
+    }).then(function(result) {
+      assert.equal(result.valueOf(), value);
+    }).then(done).catch(done);
+  });
 
-  it('should not be possible to revoke by non-owner');
+  it('should not be possible to revoke by non-owner', function(done) {
+    var owner = accounts[0];
+    var nonOwner = accounts[1];
+    var balance = 100;
+    var watcher, token;
+    Token.new(owner, 2).then(function(contract) {
+      token = contract;
+      watcher = token.Error();
+      return token.issue(VALUE);
+    }).then(function(txHash) {
+      return token.transfer(nonOwner, balance);
+    }).then(function() {
+      return token.revoke(10, {from: nonOwner});
+    }).then(function(txHash) {
+      return promisify(watcher);
+    }).then(function(events) {
+      assert.equal(events.length, 1);
+      assert.equal(events[0].event, 'Error', 'unwanted revoke succeeded.');
+      assert.equal(events[0].args.code.toNumber(), 2, 'unwanted revoke succeeded.');
+      return token.balanceOf.call(owner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), VALUE - balance);
+      return token.balanceOf.call(nonOwner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), balance);
+      return token.totalSupply.call();
+    }).then(function(result) {
+      assert.equal(result.valueOf(), VALUE);
+    }).then(done).catch(done);
+  });
 
-  it('should allow to revoke 1 with 1 balance');
+  it('should allow to revoke 1 with 1 balance', function(done) {
+    var owner = accounts[0];
+    var value = 1;
+    var amount = 1;
+    var isReissuable = false;
+    var watcher, token;
+    Token.new().then(function(contract) {
+      token = contract;
+      watcher = token.Revoke();
+      return token.issue(value);
+    }).then(function(txHash) {
+      return token.revoke(amount);
+    }).then(function(txHash) {
+      return promisify(watcher);
+    }).then(function(events) {
+      assert.equal(events.length, 1);
+      assert.equal(events[0].args.value.valueOf(), amount);
+      return token.balanceOf.call(owner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), 0);
+      return token.totalSupply.call();
+    }).then(function(result) {
+      assert.equal(result.valueOf(), 0);
+    }).then(done).catch(done);
+  });
 
-  it('should allow to revoke 1 with 2 balance');
+  it('should allow to revoke 1 with 2 balance', function(done) {
+    var owner = accounts[0];
+    var value = 2;
+    var amount = 1;
+    var token;
+    Token.new().then(function(contract) {
+      token = contract;
+      return token.issue(value);
+    }).then(function(txHash) {
+      return token.revoke(amount);
+    }).then(function() {
+      return token.balanceOf.call(owner);
+    }).then(function(result) {
+      assert.equal(result.valueOf(), value - amount);
+      return token.totalSupply.call();
+    }).then(function(result) {
+      assert.equal(result.valueOf(), value - amount);
+    }).then(done).catch(done);
+  });
 
   it('should allow to revoke 2**255 with 2**255 balance');
 
   it('should allow to revoke (2**256 - 1) with (2**256 - 1) balance');
-
 
   it('should allow to transfer amount, then read balance.');
 

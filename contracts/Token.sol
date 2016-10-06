@@ -37,8 +37,9 @@ contract Token {
     }
     
     
-    function Token(address _owner) {
+    function Token(address _owner, uint96 _baseUnit) {
         owner = _owner;
+        baseUnit = _baseUnit;
     }
     
     modifier onlyOwner() {
@@ -46,13 +47,18 @@ contract Token {
         if (msg.sender == owner || owner == 0) {
             _
         } else {
-            Error(owner, 2);
+            Error(msg.sender, 2);
         }
     }
     
     // @param _owner The address of the board contract administrating this ledger
-    function changeOwner(address _newOwner) onlyOwner {
+    function changeOwner(address _newOwner) onlyOwner returns (bool success) {
+        if (_newOwner == 0 || msg.sender == _newOwner || tx.origin == _newOwner) {
+            Error(msg.sender, 5);
+            return false;
+        }
         owner = _newOwner;
+        return true;
     }
     
     function issue(uint _value) onlyOwner returns (bool success) {
@@ -71,14 +77,22 @@ contract Token {
     }
     
     function revoke(uint _value) onlyOwner returns (bool success) {
-        if (balances[msg.sender] >= _value && _value > 0) {
-            balances[msg.sender] -= _value;
-            totalSupply -= _value;
-            Revoke(msg.sender, _value);
-            return true;
+        if (_value <= 0) {
+            Error(msg.sender, 5);
+            return;
         }
-        Error(msg.sender, 3);
-        return false;
+        if (balances[msg.sender] < _value) {
+            Error(msg.sender, 3);
+            return false;
+        }
+        if (totalSupply - _value > totalSupply) {
+            Error(msg.sender, 4);
+            return;
+        }
+        balances[msg.sender] -= _value;
+        totalSupply -= _value;
+        Revoke(msg.sender, _value);
+        return true;
     }
 
     /// @notice send `_value` token to `_to` from `msg.sender`
