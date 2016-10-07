@@ -45,14 +45,19 @@ contract Token {
     modifier onlyOwner() {
         //checking access
         if (msg.sender == owner || owner == 0) {
-            _
+            _//;
         } else {
             Error(msg.sender, 2);
         }
     }
     
+    modifier noEther() {
+        if (msg.value > 0) throw;
+        _//;
+    }
+    
     // @param _owner The address of the board contract administrating this ledger
-    function changeOwner(address _newOwner) onlyOwner returns (bool success) {
+    function changeOwner(address _newOwner) onlyOwner noEther returns (bool success) {
         if (_newOwner == 0 || msg.sender == _newOwner || tx.origin == _newOwner) {
             Error(msg.sender, 5);
             return false;
@@ -61,7 +66,7 @@ contract Token {
         return true;
     }
     
-    function issue(uint _value) onlyOwner returns (bool success) {
+    function issue(uint _value) onlyOwner noEther returns (bool success) {
         if (_value <= 0) {
             Error(msg.sender, 5);
             return;
@@ -76,7 +81,7 @@ contract Token {
         return true;
     }
     
-    function revoke(uint _value) onlyOwner returns (bool success) {
+    function revoke(uint _value) onlyOwner noEther returns (bool success) {
         if (_value <= 0) {
             Error(msg.sender, 5);
             return;
@@ -99,7 +104,7 @@ contract Token {
     /// @param _to The address of the recipient
     /// @param _value The amount of token to be transferred
     /// @return Whether the transfer was successful or not
-    function transfer(address _to, uint256 _value) returns (bool success) {
+    function transfer(address _to, uint256 _value) noEther returns (bool success) {
         if (msg.sender == _to) {
             Error(msg.sender, 5);
             return false;
@@ -123,7 +128,7 @@ contract Token {
     /// @param _to The address of the recipient
     /// @param _value The amount of token to be transferred
     /// @return Whether the transfer was successful or not
-    function transferFrom(address _from, address _to, uint256 _value) returns (bool success) {
+    function transferFrom(address _from, address _to, uint256 _value) noEther returns (bool success) {
         if (msg.sender == _from || _from == _to) {
             Error(msg.sender, 5);
             return false;
@@ -147,7 +152,7 @@ contract Token {
     /// @param _spender The address of the account able to transfer the tokens
     /// @param _value The amount of wei to be approved for transfer
     /// @return Whether the approval was successful or not
-    function approve(address _spender, uint256 _value) returns (bool success) {
+    function approve(address _spender, uint256 _value) noEther returns (bool success) {
         if (msg.sender == _spender) {
             Error(msg.sender, 5);
             return false;

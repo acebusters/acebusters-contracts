@@ -5,12 +5,21 @@ contract('Table', function(accounts) {
     var token = Token.deployed();
     var table;
 
-    Table.new(token.address, '0xf3beac30c498d9e26865f34fcaa57dbb935b0d74', 300000, 600000, 2).then(function(contract) {
+    Table.new(token.address, '0xf3beac30c498d9e26865f34fcaa57dbb935b0d74', 5000, 2).then(function(contract) {
       table = contract;
-      return table.minBuyIn.call();
-    }).then(function(buyIn) {
-      return table.join(buyIn, "test", {from: accounts[0]});
+      return table.smallBlind.call();
+    }).then(function(blind) {
+      assert.equal(blind.toNumber(), 5000, 'config failed.');
+      return token.issue(2000000);
+    }).then(function(txHash){
+      return token.approve(table.address, 1000000, {from: accounts[0]});
+    }).then(function(txHash){
+      return token.transfer(accounts[1], 1000000, {from: accounts[0]});
+    }).then(function(txHash){
+      return table.join(300000, "test", {from: accounts[0]});
     }).then(function(){
+      return token.approve(table.address, 1000000, {from: accounts[1]});
+    }).then(function(txHash){
       return table.join(355360, "test2", {from: accounts[1]});
     }).then(function(txHash){
       return table.seats.call(1);
@@ -95,12 +104,17 @@ contract('Table', function(accounts) {
     var distSig30 = '104f74c2b8ca22e98020e1063fc49026e5f08831816e55434761d154ba38309e2e7f315fdce7ec0097b16faad3fb0527a8073fe0c3740d2e832a423df63e066f1c';
 
 
-    Table.new(token.address, '0xf3beac30c498d9e26865f34fcaa57dbb935b0d74', 300000, 600000, 2).then(function(contract) {
+    Table.new(token.address, '0xf3beac30c498d9e26865f34fcaa57dbb935b0d74', 5000, 2).then(function(contract) {
       table = contract;
-      return table.minBuyIn.call();
-    }).then(function(buyIn) {
-      return table.join(buyIn, "test", {from: accounts[0]});
+      return table.smallBlind.call();
+    }).then(function(blind) {
+      assert.equal(blind.toNumber(), 5000, 'config failed.');
+      return token.approve(table.address, 300000, {from: accounts[0]});
+    }).then(function(txHash){
+      return table.join(300000, "test", {from: accounts[0]});
     }).then(function(){
+      return token.approve(table.address, 400000, {from: accounts[1]});
+    }).then(function(txHash){
       return table.join(355360, "test2", {from: accounts[1]});
     }).then(function(txHash){
 

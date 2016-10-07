@@ -4,8 +4,7 @@ import "Token.sol";
 contract Table {
 
     Token token;
-    uint public minBuyIn;
-    uint public maxBuyIn;
+    uint public smallBlind;
 
     event Join(address addr, bytes32 conn, uint256 amount);
     event NettingRequest(uint hand);
@@ -36,11 +35,10 @@ contract Table {
     uint public lastNettingRequestHandId;
     uint public lastNettingRequestTime;
     
-    function Table(address _token, address _oracle, uint _minBuyIn, uint _maxBuyIn, uint _seats) {
+    function Table(address _token, address _oracle, uint _smallBlind, uint _seats) {
         token = Token(_token);
         oracle = _oracle;
-        minBuyIn = _minBuyIn;
-        maxBuyIn = _maxBuyIn;
+        smallBlind = _smallBlind;
         seats.length = _seats + 1;
         lastHandNetted = 0;
     }
@@ -132,7 +130,7 @@ contract Table {
     function join(uint96 _buyIn, bytes32 _conn) {
         
         //check the dough
-        if (minBuyIn > _buyIn || _buyIn > maxBuyIn) {
+        if (40 * smallBlind > _buyIn || _buyIn > 400 * smallBlind) {
             throw;
         }
         
