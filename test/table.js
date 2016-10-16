@@ -182,7 +182,7 @@ contract('Table', function(accounts) {
       return table.lastNettingRequestHandId.call();
     }).then(function(lastNettingRequestHandId){
       assert.equal(lastNettingRequestHandId.toNumber(), 3, 'leave request failed.');
-      return table.net((Date.now() / 1000 | 0) + 61 * 10);
+      return table.netHelp((Date.now() / 1000 | 0) + 61 * 10);
     }).then(function(txHash){
       return table.lastHandNetted.call();
     }).then(function(lastHand){

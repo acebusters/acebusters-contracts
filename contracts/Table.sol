@@ -187,8 +187,12 @@ contract Table {
             lastNettingRequestTime = now;
         }
     }
+
+    function net() {
+        netHelp(now);
+    }
     
-    function net(uint _now) {
+    function netHelp(uint _now) {
         if (_now  > lastNettingRequestTime + 60 * 10) {
             for (uint i = lastHandNetted + 1; i <= lastNettingRequestHandId; i++ ) {
                 for (uint j = 1; j < seats.length; j++) {
@@ -203,11 +207,15 @@ contract Table {
     }
 
     function payout() {
-        uint pos = seatMap[msg.sender];
+        payoutFrom(msg.sender);
+    }
+
+    function payoutFrom(address _sender) {
+        uint pos = seatMap[_sender];
         Seat seat = seats[pos];
         if (lastHandNetted <  seat.lastHand)
             throw;
-        if (!token.transfer(msg.sender, seats[pos].amount))
+        if (!token.transfer(_sender, seats[pos].amount))
             throw;
         delete seats[pos];
     }
