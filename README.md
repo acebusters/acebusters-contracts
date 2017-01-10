@@ -1,19 +1,3 @@
-
-//small blind
-curl -X POST -H 'Content-Type: application/json' -H 'Authorization: eyJ0eXBlIjoiRVdUIiwiYWxnIjoiRVMyNTZrIn0.eyJiZXQiOlt7InVpbnQxMzYiOjB9LHsidWludDExMiI6NTAwMH1dLCJ2IjowfQ.QSUHko5AN6jFMRYwZFISPZsTWC6a8f7wxR28OcQaalprbEVnV2pFcVrNf57xvlCzjXD3hfgUK21TaCTQFtmekA' -d '{}' https://evm4rumeob.execute-api.eu-west-1.amazonaws.com/v0/table/0x9466df91658ba9312018438944250570df7dd2b9/pay
-
-//get info
-curl -X GET -H 'Content-Type: application/json'  https://evm4rumeob.execute-api.eu-west-1.amazonaws.com/v0/table/0x9466df91658ba9312018438944250570df7dd2b9/info
-
-//big blind
-curl -X POST -H 'Content-Type: application/json' -H 'Authorization: eyJ0eXBlIjoiRVdUIiwiYWxnIjoiRVMyNTZrIn0.eyJiZXQiOlt7InVpbnQxMzYiOjB9LHsidWludDExMiI6MTAwMDB9XSwidiI6MH0.5xY9besS83HX1fMi0ZW94IjFXwxj4tCpy1vtG9fHfHp0yr5aZApu_vLHGyXhDlxQszLWrMS7mqL5PyFDWs7mpA' -d '{}' https://evm4rumeob.execute-api.eu-west-1.amazonaws.com/v0/table/0x9466df91658ba9312018438944250570df7dd2b9/pay
-
-/0 blind
-
-curl -X POST -H 'Content-Type: application/json' -H 'Authorization: eyJ0eXBlIjoiRVdUIiwiYWxnIjoiRVMyNTZrIn0.eyJiZXQiOlt7InVpbnQxMzYiOjB9LHsidWludDExMiI6MH1dLCJ2IjowfQ.ASyOvIiSCXBLCN0Ra-oCtIBZF0E-dN0vdlz5M5_VG0lH9c3ml-1A2tbLd12wQ26Sp6HkawyIOydIWBM_nZqKOw' -d '{}' https://evm4rumeob.execute-api.eu-west-1.amazonaws.com/v0/table/0x9466df91658ba9312018438944250570df7dd2b9/pay
-
-/0 blind
-
-curl -X POST -H 'Content-Type: application/json' -H 'Authorization: eyJ0eXBlIjoiRVdUIiwiYWxnIjoiRVMyNTZrIn0.eyJiZXQiOlt7InVpbnQxMzYiOjB9LHsidWludDExMiI6MH1dLCJ2IjoxfQ.w0Pu97N_BScg5aLKWgVmmyoSGt7ksGr6E3j-ju0wIyMCG67b2X8d1z0jiMwZfH5SNMUtNq2rpZxh2RiqvSGsAQ' -d '{}' https://evm4rumeob.execute-api.eu-west-1.amazonaws.com/v0/table/0x9466df91658ba9312018438944250570df7dd2b9/pay
-
-/preflop
+```
+testrpc --account="0x278a5de700e29faae8e40e366ec5012b5ec63d36ec77e8a2417154cc1d25383f,999999999999999999999" --account="0x7bc8feb5e1ce2927480de19d8bc1dc6874678c016ae53a2eec6a6e9df717bfac,999999999999999999999", --account="0x71d2b12dad610fc929e0596b6e887dfb711eec286b7b8b0bdd742c0421a9c425,999999999999999999999" --account="0x94890218f2b0d04296f30aeafd13655eba4c5bbf1770273276fee52cbe3f2cb4,999999999999999999999
+```
