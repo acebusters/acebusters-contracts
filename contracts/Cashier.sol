@@ -1,4 +1,4 @@
-//pragma solidity ^0.4.2;
+pragma solidity ^0.4.7;
 import "Token.sol";
 
 contract Cashier {
@@ -23,7 +23,7 @@ contract Cashier {
     modifier onlyOwner() {
         //checking access
         if (msg.sender == owner || owner == 0) {
-            _//;
+            _;
         } else {
             Error(msg.sender, 3);
         }
@@ -31,7 +31,7 @@ contract Cashier {
     
     modifier noEther() {
         if (msg.value == 0) {
-            _//;
+            _;
         } else {
             Error(msg.sender, 2);
         }

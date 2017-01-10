@@ -1,4 +1,4 @@
-//pragma solidity ^0.4.2;
+pragma solidity ^0.4.7;
 
 // Implements ERC 20 Token standard: https://github.com/ethereum/EIPs/issues/20
 // https://github.com/ethereum/EIPs/issues/20
@@ -45,7 +45,7 @@ contract Token {
     modifier onlyOwner() {
         //checking access
         if (msg.sender == owner || owner == 0) {
-            _//;
+            _;
         } else {
             Error(msg.sender, 2);
         }
@@ -53,7 +53,7 @@ contract Token {
     
     modifier noEther() {
         if (msg.value > 0) throw;
-        _//;
+        _;
     }
     
     // @param _owner The address of the board contract administrating this ledger
