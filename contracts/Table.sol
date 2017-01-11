@@ -127,7 +127,7 @@ contract Table {
         Netted(handId);
     }
     
-    function join(uint96 _buyIn, bytes32 _conn) {
+    function join(uint96 _buyIn, uint pos, bytes32 _conn) {
         
         //check the dough
         if (40 * smallBlind > _buyIn || _buyIn > 400 * smallBlind) {
@@ -145,17 +145,15 @@ contract Table {
                 throw;
         
         //seat player
-        for (i = 1; i < seats.length; i++ ) {
-            if (seats[i].amount == 0) {
-                if (token.transferFrom(msg.sender, this, _buyIn)) {
-                    seats[i].addr = msg.sender;
-                    seats[i].amount = _buyIn;
-                    seats[i].conn = _conn;
-                    seatMap[msg.sender] = i;
-                    Join(msg.sender, _conn, _buyIn);
-                }
-                break;
-            }
+        if (pos == 0 || seats[pos].amount > 0 || seats[pos].addr != 0) {
+            throw;
+        }
+        if (token.transferFrom(msg.sender, this, _buyIn)) {
+            seats[pos].addr = msg.sender;
+            seats[pos].amount = _buyIn;
+            seats[pos].conn = _conn;
+            seatMap[msg.sender] = pos;
+            Join(msg.sender, _conn, _buyIn);
         }
     }
     

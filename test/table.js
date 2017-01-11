@@ -16,11 +16,11 @@ contract('Table', function(accounts) {
     }).then(function(txHash){
       return token.transfer(accounts[1], 1000000, {from: accounts[0]});
     }).then(function(txHash){
-      return table.join(300000, "test", {from: accounts[0]});
+      return table.join(300000, 1, "test", {from: accounts[0]});
     }).then(function(){
       return token.approve(table.address, 1000000, {from: accounts[1]});
     }).then(function(txHash){
-      return table.join(355360, "test2", {from: accounts[1]});
+      return table.join(355360, 2, "test2", {from: accounts[1]});
     }).then(function(txHash){
       return table.seats.call(1);
     }).then(function(seat){
@@ -34,7 +34,6 @@ contract('Table', function(accounts) {
     }).then(function(txHash){
       return table.seats.call(2);
     }).then(function(seat){
-      console.dir(seat);
       assert.equal(seat[2].toNumber(), 3, 'leave request failed.');
       var settlement = '0x1a3c35ac000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000002f3beac30c498d9e26865f34fcaa57dbb935b0d74000000000000000000050000e10f3d125e5f4c753a6456fc37123cf17c6900f2000000000000000000050000';
       var sigs = '0x3ffebe7b4638be2537c14ab975e25780e20c82f206c6e3c680d2e428e3f7bf3e2aa53c9f5c4049728888701c3fd657b1ed1a35fe25fa41c6763b0c8c937be56a1b0d6c83efda8c323a5dfac0c98f46ea7256307614b5a37af4ca03820cde6fd0d422dc19b5da3531a95f8874c5518540d89a86020a6a24bb406d43f68613c1d4251b';
@@ -112,11 +111,11 @@ contract('Table', function(accounts) {
       assert.equal(blind.toNumber(), 5000, 'config failed.');
       return token.approve(table.address, 300000, {from: accounts[0]});
     }).then(function(txHash){
-      return table.join(300000, "test", {from: accounts[0]});
+      return table.join(300000, 1, "test", {from: accounts[0]});
     }).then(function(){
       return token.approve(table.address, 400000, {from: accounts[1]});
     }).then(function(txHash){
-      return table.join(355360, "test2", {from: accounts[1]});
+      return table.join(355360, 2,"test2", {from: accounts[1]});
     }).then(function(txHash){
 
       return table.submitDists('0x' + dist10, '0x' + distSig10);
