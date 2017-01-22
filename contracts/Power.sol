@@ -10,11 +10,21 @@ contract Power {
     event Error(address sender, uint code);
 
     // total amount of tokens
-    uint256 public totalSupply = 0;
+    uint public totalSupply;
+    uint public downtime;
     address public minerAddress;
     address public aceAddress;
 
     mapping (address => uint256) balances;
+
+    struct DownRequest {
+        address owner;
+        uint total;
+        uint left;
+        uint start;
+    }
+
+    DownRequest[] downs;
 
     /// @param _holder The address from which the balance will be retrieved
     /// @return The balance
@@ -22,14 +32,16 @@ contract Power {
         return balances[_holder];
     }
     
-    function Power(address _minerAddress, address _aceAddress) {
+    function Power(address _minerAddress, address _aceAddress, uint _downtime) {
         minerAddress = _minerAddress;
         aceAddress = _aceAddress;
+        downtime = _downtime;
     }
 
-    function configure(address _minerAddress, address _aceAddress) {
+    function configure(address _minerAddress, address _aceAddress, uint _downtime) {
         minerAddress = _minerAddress;
         aceAddress = _aceAddress;
+        downtime = _downtime;
     }
     
     // power up some ace to power
@@ -49,6 +61,54 @@ contract Power {
         Up(_owner, amount);
         return true;
     }
+
+    // executes a powerdown request
+    function _downTick(uint _pos, uint _now) internal returns (bool success) {
+        if (downs.length <= _pos) {
+            Error(msg.sender, 7);
+            return false;
+        }
+        if (_now <= downs[_pos].start) {
+            Error(msg.sender, 8);
+            return false;
+        }
+        uint expected = downs[_pos].total - downs[_pos].total * ((_now - downs[_pos].start) / downtime);
+        if (downs[_pos].left <= expected) {
+            Error(msg.sender, 9);
+            return false;
+        }
+        uint amountPower = downs[_pos].left - expected;
+        if (amountPower <= 0) {
+            Error(downs[_pos].owner, 5);
+            return false;
+        }
+        if (balances[downs[_pos].owner] < amountPower) {
+            Error(downs[_pos].owner, 3);
+            return false;
+        }
+        if (totalSupply - amountPower > totalSupply) {
+            Error(downs[_pos].owner, 4);
+            return false;
+        }
+        var ace = Token(aceAddress);
+
+        uint amountAce = (amountPower * ace.totalSupply()) / totalSupply;
+        if (ace.balanceOf(this) < amountAce) {
+            Error(downs[_pos].owner, 9);
+            return false;
+        }
+        balances[downs[_pos].owner] -= amountPower;
+        totalSupply -= amountPower;
+        downs[_pos].left = expected;
+        if (!ace.transfer(downs[_pos].owner, amountAce)) {
+            // revert all changes to account;
+            balances[downs[_pos].owner] += amountPower;
+            totalSupply += amountPower;
+            downs[_pos].left = expected + amountPower;
+        }
+        return true;
+    }
+
     
     modifier onlyAce() {
         //checking access
@@ -72,9 +132,8 @@ contract Power {
         }
         return true;
     }
-    
-    // power down some ace
-    // this will call external contract
+
+    // registers a powerdown request
     function down(uint _amountPower) returns (bool success) {
         if (_amountPower <= 0) {
             Error(msg.sender, 5);
@@ -88,17 +147,23 @@ contract Power {
             Error(msg.sender, 4);
             return false;
         }
-        var ace = Token(aceAddress);
 
-        uint amountAce = (_amountPower * ace.totalSupply()) / totalSupply;
-        if (ace.balanceOf(this) < amountAce) {
-            Error(msg.sender, amountAce);
-            return false;
-        }
-        balances[msg.sender] -= _amountPower;
-        totalSupply -= _amountPower;
+        uint pos = downs.length++;
+        downs[pos] = DownRequest(msg.sender, _amountPower, _amountPower, now);
         Down(msg.sender, _amountPower);
-        return ace.transfer(msg.sender, amountAce);
+        return true;
     }
+
+    function downTick(uint _pos) returns (bool success) {
+        return _downTick(_pos, now);
+    }
+
+// !!!!!!!!!!!!!!!!!!!!!!!! IMPORTANT !!!!!!!!!!!!!!!!!!!!!
+// REMOVE THIS BEFORE DEPLOYMENT!!!!
+// needed for accelerated time testing
+    function downTickTest(uint _pos, uint _now) returns (bool success) {
+        return _downTick(_pos, _now);
+    }
+// !!!!!!!!!!!!!!!!!!!!!!!! IMPORTANT !!!!!!!!!!!!!!!!!!!!!
 
 }

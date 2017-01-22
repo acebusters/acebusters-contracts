@@ -4,10 +4,11 @@ contract('Power', function(accounts) {
 
     var power = Power.deployed();
     var token;
+    var downtime = 12*7*24*3600; // 3 month
 
     Token.new(accounts[0], 2, power.address).then(function(contract) {
       token = contract;
-      return power.configure(accounts[3], token.address);
+      return power.configure(accounts[3], token.address, downtime);
     }).then(function() {  
       return token.issue(1000);
     }).then(function() {
@@ -26,6 +27,8 @@ contract('Power', function(accounts) {
       return token.transfer(power.address, 1000, {from: accounts[3]});
     }).then(function() {
       return power.down(200);
+    }).then(function() {
+      return power.downTickTest(0, (Date.now() / 1000 | 0) + downtime);
     }).then(function() {
       return power.balanceOf.call(accounts[0]);
 	}).then(function(bal) {
