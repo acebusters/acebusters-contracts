@@ -69,7 +69,7 @@ contract('Token', function(accounts) {
   it('should allow to issue, then read baseUnit, and balance of know and unknown account.', function(done) {
     var token;
     var amount = 40000;
-    Token.new(accounts[0], 2).then(function(contract) {
+    Token.new(accounts[0], 2, accounts[1]).then(function(contract) {
       token = contract;
       return token.issue(amount);
     }).then(function(txHash){
@@ -184,7 +184,7 @@ contract('Token', function(accounts) {
     var nonOwner = accounts[1];
     var balance = 100;
     var watcher, token;
-    Token.new(owner, 2).then(function(contract) {
+    Token.new(owner, 2, accounts[2]).then(function(contract) {
       token = contract;
       watcher = token.Error();
       return token.issue(VALUE);

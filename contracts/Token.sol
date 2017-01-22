@@ -3,6 +3,10 @@ pragma solidity ^0.4.7;
 // Implements ERC 20 Token standard: https://github.com/ethereum/EIPs/issues/20
 // https://github.com/ethereum/EIPs/issues/20
 
+contract PowerInterface {
+    function notify(address _sender, uint _value) returns (bool success) {}
+}
+
 contract Token {
     
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -19,6 +23,7 @@ contract Token {
     uint256 public totalSupply;
     uint96 public baseUnit;
     address public owner;
+    address public powerAddress;
     
     mapping (address => uint256) balances;
     mapping (address => mapping (address => uint256)) allowed;
@@ -37,9 +42,10 @@ contract Token {
     }
     
     
-    function Token(address _owner, uint96 _baseUnit) {
+    function Token(address _owner, uint96 _baseUnit, address _powerAddr) {
         owner = _owner;
         baseUnit = _baseUnit;
+        powerAddress = _powerAddr;
     }
     
     modifier onlyOwner() {
@@ -116,7 +122,18 @@ contract Token {
         if (balances[msg.sender] >= _value && _value > 0) {
             balances[msg.sender] -= _value;
             balances[_to] += _value;
-            Transfer(msg.sender, _to, _value);
+            if (_to == powerAddress) {
+                var power = PowerInterface(powerAddress);
+                if (!power.notify(msg.sender, _value)) {
+                    //error, reverse transaction
+                    balances[msg.sender] += _value;
+                    balances[_to] -= _value;
+                    Error(msg.sender, 6);
+                    return false;
+                }
+            } else {
+                Transfer(msg.sender, _to, _value);
+            }
             return true;
         }
         Error(msg.sender, 3);
