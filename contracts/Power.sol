@@ -36,10 +36,10 @@ contract Power {
     function _up(address _owner, uint _amountAce) internal returns (bool success) {
         var ace = Token(aceAddress);
         if (totalSupply == 0) {
-            totalSupply = 100;
+            totalSupply = ace.totalSupply();
         }
 
-        uint amount = (_amountAce * totalSupply) / ace.totalSupply();
+        uint amount = (_amountAce * totalSupply) / (ace.totalSupply() - _amountAce);
         if (totalSupply + amount <= totalSupply) {
             Error(msg.sender, 6);
             return false;
@@ -90,7 +90,7 @@ contract Power {
         }
         var ace = Token(aceAddress);
 
-        uint amountAce = (_amountPower * ace.totalSupply()) / (totalSupply - _amountPower);
+        uint amountAce = (_amountPower * ace.totalSupply()) / totalSupply;
         if (ace.balanceOf(this) < amountAce) {
             Error(msg.sender, amountAce);
             return false;
