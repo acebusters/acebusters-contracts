@@ -3,5 +3,5 @@ module.exports = function(deployer) {
   deployer.deploy(Table);
   deployer.deploy(Power);
   deployer.deploy(Owned);
-  deployer.deploy(Proxy);
+  deployer.deploy(AccountProxy);
 };

@@ -1,9 +1,9 @@
-contract("Proxy", (accounts) => {
+contract("AccountProxy", (accounts) => {
   var proxy
   var testToken
 
   before(() => {
-    proxy = Proxy.deployed();
+    proxy = AccountProxy.deployed();
     testToken = Token.deployed();
   });
 
@@ -12,7 +12,7 @@ contract("Proxy", (accounts) => {
     // issue(1000)
     var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000003e8';
     // Send forward request from the owner
-    proxy.forward(testToken.address, 0, '0x' + data, {from: accounts[0]}).then(() => {
+    proxy.forward(testToken.address, '0x' + data, {from: accounts[0]}).then(() => {
       return testToken.balanceOf.call(proxy.address);
     }).then((rsp) => {
       assert.equal(rsp.toNumber(), 1000)
@@ -38,7 +38,7 @@ contract("Proxy", (accounts) => {
     // issue(2000)
     var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
     // Send forward request from a non-owner
-    proxy.forward(testToken.address, 0, '0x' + data, {from: accounts[1]}).then(() => {
+    proxy.forward(testToken.address, '0x' + data, {from: accounts[1]}).then(() => {
       return testToken.balanceOf.call(proxy.address);
     }).then((rsp) => {
       assert.notEqual(rsp.toNumber(), 3000)
@@ -50,7 +50,7 @@ contract("Proxy", (accounts) => {
     var errorThrown = false;
     // Encode the transaction to send to the proxy contract
     var data = '50bff6bf';
-    proxy.forward(testToken.address, 0, '0x' + data, {from: accounts[0]}).catch((e) => {
+    proxy.forward(testToken.address, '0x' + data, {from: accounts[0]}).catch((e) => {
       errorThrown = true;
     }).then(() => {
       assert.isTrue(errorThrown, "An error should have been thrown");
