@@ -51,15 +51,14 @@ contract AccountController {
     bytes32 s;
     uint8 v;
     assembly {
-        let name := mload(add(_data, 4))
+        let name := and(mload(add(_data, 4)),0xffffffff)
         nonceAndAddr := mload(add(_data, 36))
         // set destination
         destination := nonceAndAddr
         //expect functionSig bc946030 for proxySend(bytes32, uint256)
-        jumpi(sig, eq(name, 3163840560))
+        jumpi(sig, iszero(eq(name, 0xbc946030)))
         value := mload(add(_data, 68))
         sig:
-            // todo: read value
             r := mload(add(_sig, 32))
             s := mload(add(_sig, 64))
             v := mload(add(_sig, 65))
