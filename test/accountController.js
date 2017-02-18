@@ -1,21 +1,23 @@
 contract("AccountController", (accounts) => {
 
-  var receiptAddr1 = '0xf3beac30c498d9e26865f34fcaa57dbb935b0d74';
+  var signerAddr1 = '0xf3beac30c498d9e26865f34fcaa57dbb935b0d74';
+  var token;
 
   before(() => {
     proxy = AccountProxy.deployed();
+    token = Token.deployed();
   });
 
   it("Correctly deploys contract", (done) => {
     var controller;
-    AccountController.new(proxy.address, receiptAddr1, 0).then((contract) => {
+    AccountController.new(proxy.address, accounts[0], 0).then((contract) => {
       controller = contract;
       return controller.proxyAddr.call();
     }).then((proxyAddr) => {
       assert.equal(proxyAddr, proxy.address);
-      return controller.receiptAddr.call();
-    }).then((receiptAddr) => {
-      assert.equal(receiptAddr, receiptAddr1);
+      return controller.signerAddr.call();
+    }).then((signerAddr) => {
+      assert.equal(signerAddr, accounts[0]);
       return controller.changeRecoveryAddr(accounts[1]);
     }).then(() => {
       return controller.recoveryAddr.call();
@@ -27,24 +29,27 @@ contract("AccountController", (accounts) => {
 
   it("Only sends transactions from correct user", (done) => {
     // Transfer ownership of proxy to the controller contract.
-    proxy.transfer(standardController.address, {from:user1}).then(() => {
-      // Encode the transaction to send to the Owner contract
-      var data = '0x' + lightwallet.txutils._encodeFunctionTxData('register', ['uint256'], [LOG_NUMBER_1]);
-      return standardController.forward(testReg.address, 0, data, {from: user1});
+    var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
+    var controller;
+    AccountController.new(proxy.address, accounts[0], 0).then((contract) => {
+      controller = contract;
+      return proxy.transfer(controller.address);
+    }).then(() => {
+      // issue 2000 in token through proxy
+      return controller.forwardTx(token.address, '0x' + data);
     }).then(() => {
       // Verify that the proxy address is logged as the sender
-      return testReg.registry.call(proxy.address);
-    }).then((regData) => {
-      assert.equal(regData.toNumber(), LOG_NUMBER_1, "User1 should be able to send transaction");
+      return token.balanceOf.call(proxy.address);
+    }).then((bal) => {
+      assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
 
-      // Encode the transaction to send to the Owner contract
-      var data = '0x' + lightwallet.txutils._encodeFunctionTxData('register', ['uint256'], [LOG_NUMBER_2]);
-      return standardController.forward(testReg.address, 0, data, {from: user2});
+      // issue 2000 in token through proxy if not authorized
+      return controller.forwardTx(token.address, '0x' + data, {from: accounts[1]});
     }).then(() => {
-      // Verify that the proxy address is logged as the sender
-      return testReg.registry.call(proxy.address);
-    }).then((regData) => {
-      assert.notEqual(regData.toNumber(), LOG_NUMBER_2, "User2 should not be able to send transaction");
+      // Verify that transaction did not take effect
+      return token.balanceOf.call(proxy.address);
+    }).then((bal) => {
+      assert.equal(bal.toNumber(), 2000, "unknow sender should not be able to proxy transaction");
       done();
     }).catch(done);
   });

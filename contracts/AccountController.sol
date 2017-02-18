@@ -9,20 +9,23 @@ contract AccountController {
   // address of the proxy contract
   // this is the identity of the user
   address public proxyAddr;
+
+  // lock time before controller change
+  uint96 public timeLock; // use 259200 for 3 days
+
   // the address of the key the user generates in the browser
   // will send signed receipts that shall be forwarded
-  address public receiptAddr;
-  
-  mapping(uint => bool) public nonceMap;
-  
-  // the address of a key the operator keeps secure
-  // used to change the receiptAddr, if user lost privKey
-  address public recoveryAddr;
+  address public signerAddr;
 
   uint96 public proposedControllerPendingUntil;  
   address public proposedController;
-  uint96 public timeLock; // use 259200 for 3 days
 
+  
+  // the address of a key the operator keeps secure
+  // used to change the signerAddr, if user lost privKey
+  address public recoveryAddr;
+  
+  mapping(uint => bool) public nonceMap;
 
   event RecoveryEvent(string action, address initiatedBy);
  
@@ -32,10 +35,16 @@ contract AccountController {
       }
   }
 
-  function AccountController(address _proxyAddr, address _receiptAddr, uint96 _timeLock) {
+  modifier onlySignerAddr() {
+      if (msg.sender == signerAddr) {
+          _;
+      }
+  }
+
+  function AccountController(address _proxyAddr, address _signerAddr, uint96 _timeLock) {
     version = 000100; // read as 0.1.0
     proxyAddr = _proxyAddr;
-    receiptAddr = _receiptAddr;
+    signerAddr = _signerAddr;
     timeLock = _timeLock;
     recoveryAddr = msg.sender;
   }
@@ -65,22 +74,30 @@ contract AccountController {
     }
     
     // 2. check permission
-    if (ecrecover(sha3(_data), v, r, s) != receiptAddr)
-        throw;
     // nonce should not have been used before
     if (nonceMap[nonceAndAddr]) {
         throw;
     }
-    nonceMap[nonceAndAddr] = true;
+    // check signer
+    if (ecrecover(sha3(_data), v, r, s) != signerAddr)
+        throw;
     
     // 3. do stuff
+    nonceMap[nonceAndAddr] = true;
     if (value > 0) {
-        AccountProxy(proxyAddr).send(destination, value);
+      AccountProxy(proxyAddr).send(destination, value);
     } else {
-        AccountProxy(proxyAddr).forward(destination, _data);
+      AccountProxy(proxyAddr).forward(destination, _data);
     }
   }
 
+  function forwardTx(address _destination, bytes _payload) onlySignerAddr {
+    AccountProxy(proxyAddr).forward(_destination, _payload);
+  }
+
+  function send(address _destination, uint _value) onlySignerAddr {
+    AccountProxy(proxyAddr).send(_destination, _value);
+  }
   
   function signControllerChange(bytes _receipt) {
     // 1. parse data
@@ -92,7 +109,7 @@ contract AccountController {
     bytes32 s;
     uint8 v;
     assembly {
-        name := mload(add(_receipt, 4))
+        name := and(mload(add(_receipt, 4)),0xffffffff)
         nonce := mload(add(_receipt, 36))
         control := mload(add(_receipt, 68))
         r := mload(add(_receipt, 100))
@@ -101,19 +118,26 @@ contract AccountController {
     }
     
     // 2. check permission
-    address signer = ecrecover(sha3(bytes4(name), nonce, bytes32(control)), v, r, s);
-    if (signer != receiptAddr)
-        throw;
     // nonce should not have been used before
     if (nonceMap[nonce]) {
         throw;
     }
-    nonceMap[nonce] = true;
+    // check signer
+    address signer = ecrecover(sha3(bytes4(name), nonce, bytes32(control)), v, r, s);
+    if (signer != signerAddr)
+        throw;
     
     // 3. do things
+    nonceMap[nonce] = true;
     proposedControllerPendingUntil = uint96(now) + timeLock;
     proposedController = control;
     RecoveryEvent("signControllerChange", signer);
+  }
+  
+  function signControllerChange(address _newController) onlySignerAddr {
+    proposedControllerPendingUntil = uint96(now) + timeLock;
+    proposedController = _newController;
+    RecoveryEvent("signControllerChange", msg.sender);
   }
 
   function changeController() {
@@ -129,8 +153,8 @@ contract AccountController {
       RecoveryEvent("changeRecoveryAddr", msg.sender);
   }
 
-  function changeUserAddr(address _newReceiptAddr) onlyRecoveryAddr {
-    receiptAddr = _newReceiptAddr;
+  function changeUserAddr(address _newsignerAddr) onlyRecoveryAddr {
+    signerAddr = _newsignerAddr;
     RecoveryEvent("changeUserAddr", msg.sender);
   }
 
