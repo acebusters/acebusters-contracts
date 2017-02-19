@@ -27,7 +27,7 @@ contract AccountController {
   
   mapping(uint => bool) public nonceMap;
 
-  event RecoveryEvent(string action, address initiatedBy);
+  event AccountEvent(string action, address initiatedBy);
  
   modifier onlyRecoveryAddr() {
       if (msg.sender == recoveryAddr) {
@@ -95,7 +95,7 @@ contract AccountController {
     AccountProxy(proxyAddr).forward(_destination, _payload);
   }
 
-  function send(address _destination, uint _value) onlySignerAddr {
+  function sendTx(address _destination, uint _value) onlySignerAddr {
     AccountProxy(proxyAddr).send(_destination, _value);
   }
   
@@ -131,13 +131,13 @@ contract AccountController {
     nonceMap[nonce] = true;
     proposedControllerPendingUntil = uint96(now) + timeLock;
     proposedController = control;
-    RecoveryEvent("signControllerChange", signer);
+    AccountEvent("signControllerChange", signer);
   }
   
-  function signControllerChange(address _newController) onlySignerAddr {
+  function signControllerChangeTx(address _newController) onlySignerAddr {
     proposedControllerPendingUntil = uint96(now) + timeLock;
     proposedController = _newController;
-    RecoveryEvent("signControllerChange", msg.sender);
+    AccountEvent("signControllerChange", msg.sender);
   }
 
   function changeController() {
@@ -145,17 +145,19 @@ contract AccountController {
       var proxy = AccountProxy(proxyAddr);
       proxy.transfer(proposedController);
       suicide(proposedController);
+    } else {
+      AccountEvent("error", proposedController);
     }
   }
   
   function changeRecoveryAddr(address _newRecoveryAddr) onlyRecoveryAddr {
       recoveryAddr = _newRecoveryAddr;
-      RecoveryEvent("changeRecoveryAddr", msg.sender);
+      AccountEvent("changeRecoveryAddr", msg.sender);
   }
 
-  function changeUserAddr(address _newsignerAddr) onlyRecoveryAddr {
-    signerAddr = _newsignerAddr;
-    RecoveryEvent("changeUserAddr", msg.sender);
+  function changeSignerAddr(address _newSignerAddr) onlyRecoveryAddr {
+    signerAddr = _newSignerAddr;
+    AccountEvent("changeSignerAddr", msg.sender);
   }
 
 }
