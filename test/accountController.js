@@ -12,19 +12,17 @@ contract("AccountController", (accounts) => {
 
   it("Correctly deploys contract", (done) => {
     var controller;
-    AccountController.new(proxy.address, accounts[0], 0).then((contract) => {
+    AccountController.new(proxy.address, accounts[0], accounts[0], 0).then((contract) => {
       controller = contract;
-      return controller.proxyAddr.call();
+      return controller.proxy.call();
     }).then((proxyAddr) => {
       assert.equal(proxyAddr, proxy.address);
-      return controller.signerAddr.call();
+      return controller.signer.call();
     }).then((signerAddr) => {
       assert.equal(signerAddr, accounts[0]);
-      return controller.changeRecoveryAddr(accounts[1]);
-    }).then(() => {
-      return controller.recoveryAddr.call();
+      return controller.recovery.call();
     }).then((recoveryAddr) => {
-      assert.equal(recoveryAddr, accounts[1]);
+      assert.equal(recoveryAddr, accounts[0]);
       done();
     }).catch(done);
   });
@@ -33,7 +31,7 @@ contract("AccountController", (accounts) => {
     // Transfer ownership of proxy to the controller contract.
     var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
     var controller;
-    AccountController.new(proxy.address, accounts[0], 0).then((contract) => {
+    AccountController.new(proxy.address, accounts[0], accounts[0], 0).then((contract) => {
       controller = contract;
       return proxy.transfer(controller.address);
     }).then(() => {
@@ -59,17 +57,17 @@ contract("AccountController", (accounts) => {
   it("Updates signerAddr as recovery", (done) => {
     var controller;
     var signer = accounts[1];
-    AccountController.new(proxy.address, signer, 0).then((contract) => {
+    AccountController.new(proxy.address, signer, accounts[0], 0).then((contract) => {
       controller = contract;
       // try to change signer address from signer address
-      return controller.changeSignerAddr(accounts[2], {from: signer});
+      return controller.changeSigner(accounts[2], {from: signer});
     }).then(() => {
-      return controller.signerAddr.call();
+      return controller.signer.call();
     }).then((signerAddr) => {
       assert.equal(signerAddr, signer, "Only recovery can call changeSignerAddr.");
-      return controller.changeSignerAddr(accounts[2]);
+      return controller.changeSigner(accounts[2]);
     }).then(() => {
-      return controller.signerAddr.call();
+      return controller.signer.call();
     }).then((signerAddr) => {
       assert.equal(signerAddr, accounts[2], "Recovery should be able to change signer.");
       done();
@@ -79,19 +77,26 @@ contract("AccountController", (accounts) => {
   it("Updates recoveryAddr as recovery", (done) => {
     var controller;
     var signer = accounts[1];
-    AccountController.new(proxy.address, signer, 0).then((contract) => {
+    AccountController.new(proxy.address, signer, accounts[0], 0).then((contract) => {
       controller = contract;
-      return controller.changeRecoveryAddr(accounts[2], {from: signer});
+      return controller.signRecoveryChangeTx(accounts[2], {from: accounts[3]});
     }).then(() => {
-      return controller.recoveryAddr.call();
+      return controller.newRecovery.call();
     }).then((recoveryAddr) => {
-      assert.equal(recoveryAddr, accounts[0], "Only recovery key can call changeRecoveryFromRecovery");
+      assert.equal(recoveryAddr, 0x0, "Only recovery or signer can call changeRecoveryFromRecovery");
 
-      return controller.changeRecoveryAddr(accounts[2]);
+      return controller.signRecoveryChangeTx(accounts[2]);
     }).then(() => {
-      return controller.recoveryAddr.call();
+      return controller.newRecovery.call();
     }).then((recoveryAddr) => {
       assert.equal(recoveryAddr, accounts[2], "Recovery should be able to change recovery.");
+      return wait(1);
+    }).then(() => {
+      return controller.changeRecovery({from: signer});
+    }).then(() => {
+      return controller.recovery.call();
+    }).then((recoveryAddr) => {
+      assert.equal(recoveryAddr, accounts[2], "ChangeRecovery Should affect recovery address after longTimeLock period");
       done();
     }).catch(done);
   });
@@ -104,22 +109,22 @@ contract("AccountController", (accounts) => {
 
     AccountProxy.new().then((contract) => {
       proxyContract = contract;
-      return AccountController.new(proxyContract.address, signer, 0);
+      return AccountController.new(proxyContract.address, signer, accounts[0], 0);
     }).then((contract) => {
       controller = contract;
       return proxyContract.transfer(controller.address);
     }).then(() => {
       return controller.signControllerChangeTx(newController, {from: accounts[2]});
     }).then(() => {
-      return controller.proposedController.call();
-    }).then((proposedController) => {
-      assert.equal(proposedController, 0x0, "Only user can set the proposedController");
+      return controller.newController.call();
+    }).then((newControllerAddr) => {
+      assert.equal(newControllerAddr, 0x0, "Only user can set the newController");
 
       return controller.signControllerChangeTx(newController, {from: signer});
     }).then(() => {
-      return controller.proposedController.call();
-    }).then((proposedController) => {
-      assert.equal(proposedController, newController, "New controller should now be cued up");
+      return controller.newController.call();
+    }).then((newControllerAddr) => {
+      assert.equal(newControllerAddr, newController, "New controller should now be cued up");
       return proxyContract.owner.call();
     }).then((proxyOwner) => {
       assert.equal(proxyOwner, controller.address, "proxy should not change until changeController is called");

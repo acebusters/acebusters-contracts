@@ -10,9 +10,8 @@ contract AccountFactory {
 
   function create(address _signer, address _recovery, uint _timeLock) {
     AccountProxy proxy = new AccountProxy();
-    AccountController controller = new AccountController(proxy, _signer, uint96(_timeLock));
+    AccountController controller = new AccountController(proxy, _signer, _recovery, uint96(_timeLock));
     proxy.transfer(controller);
-    controller.changeRecoveryAddr(_recovery);
 
     AccountCreated(_signer, proxy, controller, _recovery);
     signerToProxy[_signer] = proxy;
