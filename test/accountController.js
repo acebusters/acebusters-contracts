@@ -62,26 +62,25 @@ contract("AccountController", (accounts) => {
   });
 
   it("sends transactions by receipt", (done) => {
-    // Transfer ownership of proxy to the controller contract.
-    var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
+    // create proxy and controller
     var controller;
-
     var proxyContract;
-
     AccountProxy.new().then((contract) => {
       proxyContract = contract;
       return AccountController.new(proxyContract.address, signerAddr1, accounts[0], 0);
     }).then((contract) => {
       controller = contract;
       return proxyContract.transfer(controller.address);
+
+    // construct a receipt, sign and send
     }).then(() => {
       // issue 2000 in token through proxy
+      var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
       var nonceAndAddr = '000000000000000000000000'+token.address.replace('0x', '');
-      var priv = new Buffer(signerPriv1, 'hex');
-      var payload = new Buffer(nonceAndAddr + data, 'hex');
-      var hash = ethUtil.sha3(payload);
-      var sig = ethUtil.ecsign(hash, priv);
-      return controller.forward('0x' + nonceAndAddr, '0x' + data, '0x' + sig.r.toString('hex'), '0x' + sig.s.toString('hex'), sig.v);
+      var sig = sign(signerPriv1, nonceAndAddr + data);
+      return controller.forward('0x' + nonceAndAddr, '0x' + data, sig.r, sig.s, sig.v);
+
+    // verify that receipt has been executed
     }).then(() => {
       // Verify that the proxy address is logged as the sender
       return token.balanceOf.call(proxyContract.address);
