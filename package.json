@@ -1,0 +1,12 @@
+{
+  "name": "chain.fish",
+  "version": "0.1.2",
+  "description": "acebusters contracts",
+  "keywords": [
+    "acebusters"
+  ],
+  "author": "acebusters",
+  "dependencies": {
+    "ethereumjs-util": "^5.1.1"
+  }
+}
