@@ -76,7 +76,7 @@ contract("AccountController", (accounts) => {
     }).then(() => {
       // issue 2000 in token through proxy
       var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
-      var nonceAndAddr = '000000000000000000000000'+token.address.replace('0x', '');
+      var nonceAndAddr = '000000000000000000000001'+token.address.replace('0x', '');
       var sig = sign(signerPriv1, nonceAndAddr + data);
       return controller.forward('0x' + nonceAndAddr, '0x' + data, sig.r, sig.s, sig.v);
 
@@ -86,6 +86,49 @@ contract("AccountController", (accounts) => {
       return token.balanceOf.call(proxyContract.address);
     }).then((bal) => {
       assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
+      done();
+    }).catch(done);
+  });
+
+  it("not prevent submitting wrong nonce", (done) => {
+    // create proxy and controller
+    var controller;
+    var proxyContract;
+    AccountProxy.new().then((contract) => {
+      proxyContract = contract;
+      return AccountController.new(proxyContract.address, signerAddr1, accounts[0], 0);
+    }).then((contract) => {
+      controller = contract;
+      return proxyContract.transfer(controller.address);
+
+    // construct a receipt, sign and send
+    }).then(() => {
+      // issue 2000 in token through proxy
+      var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
+      var nonceAndAddr = '000000000000000000000001'+token.address.replace('0x', '');
+      var sig = sign(signerPriv1, nonceAndAddr + data);
+      return controller.forward('0x' + nonceAndAddr, '0x' + data, sig.r, sig.s, sig.v);
+
+    // verify that receipt has been executed
+    }).then(() => {
+      // Verify that the proxy address is logged as the sender
+      return token.balanceOf.call(proxyContract.address);
+    }).then((bal) => {
+      assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
+
+      // same operation as above with wrong nonce
+      var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
+      var nonceAndAddr = '000000000000000000000003'+token.address.replace('0x', '');
+      var sig = sign(signerPriv1, nonceAndAddr + data);
+      return controller.forward('0x' + nonceAndAddr, '0x' + data, sig.r, sig.s, sig.v);
+
+    // verify that receipt has been executed
+    }).then(() => {
+      // Verify that the proxy address is logged as the sender
+      return token.balanceOf.call(proxyContract.address);
+    }).then((bal) => {
+      assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
+
       done();
     }).catch(done);
   });

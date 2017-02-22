@@ -5,7 +5,7 @@ contract AccountController {
 
   // constants
   uint96 public version;
-  
+
   // address of the proxy contract
   // this is the identity of the user
   address public proxy;
@@ -17,23 +17,22 @@ contract AccountController {
   // will send signed receipts that shall be forwarded
   address public signer;
 
-  uint96 public newControllerPendingUntil;  
+  uint96 public newControllerPendingUntil;
   address public newController;
 
-  uint96 public newRecoveryPendingUntil;  
+  uint96 public newRecoveryPendingUntil;
   address public newRecovery;
-  
+
+  // last nonce used by signer
+  // for valid transactions next receipt has to carry last nonce + 1
+  uint96 public lastNonce;
   // the address of a key the operator keeps secure
   // used to change the signerAddr, if user lost privKey
   address public recovery;
-  
-  mapping(bytes32 => bool) public nonceMap;
 
   event Event(bytes32 action);
   event Error(bytes32 error);
-  // 403 Access Forbidden
-  // 409 Conflict - nonce used before
- 
+
   modifier onlyRecovery() {
     if (msg.sender == recovery) {
       _;
@@ -90,41 +89,29 @@ contract AccountController {
   function forward(bytes32 _nonceAndAddr, bytes _data, bytes32 _r, bytes32 _s, uint8 _v) {
     // 1. parse data
     // expected _nonceAndAddr: <12bytes nonce><20bytes destination>
-    // for send only, use this sig: proxySend(uint256 amount)
     address destination;
-    uint value = 0;
+    uint96 nonce = uint96(_nonceAndAddr >> 160);
     assembly {
       // set destination
       destination := _nonceAndAddr
-
-      //expect functionSig bc946030 for proxySend(uint256)
-      let name := and(mload(add(_data, 4)),0xffffffff)
-      jumpi(end, iszero(eq(name, 0xbc946030)))
-      value := mload(add(_data, 34))
-      end:
     }
-    
+
     // 2. check permission
-    // nonce should not have been used before
-    if (nonceMap[_nonceAndAddr]) {
-      // Nonce conflict.
+    if (nonce != lastNonce + 1) {
+      // Invalid nonce
       Error(0x4e6f6e636520636f6e666c6963742e);
       return;
     }
-    nonceMap[_nonceAndAddr] = true;
+    lastNonce = nonce;
     // check signer
     if (ecrecover(sha3(_nonceAndAddr, _data), _v, _r, _s) != signer) {
       // Access denied.
       Error(0x4163636573732064656e6965642e);
       return;
     }
-    
+
     // 3. do stuff
-    if (value > 0) {
-      AccountProxy(proxy).send(destination, value);
-    } else {
-      AccountProxy(proxy).forward(destination, _data);
-    }
+    AccountProxy(proxy).forward(destination, _data);
   }
 
   function forwardTx(address _destination, bytes _payload) onlySigner {
@@ -134,7 +121,7 @@ contract AccountController {
   function sendTx(address _destination, uint _value) onlySigner {
     AccountProxy(proxy).send(_destination, _value);
   }
-  
+
   function signControllerChange(address _newController) onlySigner {
     newControllerPendingUntil = uint96(now) + timeLock;
     newController = _newController;
@@ -156,7 +143,7 @@ contract AccountController {
     AccountProxy(proxy).transfer(newController);
     suicide(newController);
   }
-  
+
   function signRecoveryChange(address _newRecovery) onlySignerOrProxyOrRecovery {
     newRecoveryPendingUntil = uint96(now) + timeLock;
     newRecovery = _newRecovery;
