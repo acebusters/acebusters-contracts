@@ -4,3 +4,4 @@ build
 environments/
 *.sol.js
 environments/
+.idea
