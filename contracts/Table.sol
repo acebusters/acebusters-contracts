@@ -9,7 +9,12 @@ contract Table {
     event Join(address addr, bytes32 conn, uint256 amount);
     event NettingRequest(uint hand);
     event Netted(uint hand);
-    
+    event Error(uint errorCode);
+    // 1 : Not the right amount
+    // 2 : No beggars
+    // 3 : No duplicate players
+    // 4 : Seat not available
+
     address public oracle;
     
     struct Hand {
@@ -137,12 +142,14 @@ contract Table {
         
         //check the dough
         if (40 * smallBlind > _buyIn || _buyIn > 400 * smallBlind) {
-            throw;
+            Error(1);
+            return;
         }
         
         //no beggars
         if (token.balanceOf(msg.sender) < _buyIn || token.allowance(msg.sender, this) < _buyIn) {
-            throw;
+            Error(2);
+            return;
         }
         
         //avoid duplicate players
@@ -150,12 +157,16 @@ contract Table {
             if (seats[i].senderAddr == msg.sender ||
                 seats[i].receiptAddr == msg.sender ||
                 seats[i].senderAddr == _receiptAddr ||
-                seats[i].receiptAddr == _receiptAddr)
-                throw;
+                seats[i].receiptAddr == _receiptAddr) {
+                    Error(3)
+                    return;
+                }
+                
         
         //seat player
         if (_pos == 0 || seats[_pos].amount > 0 || seats[_pos].senderAddr != 0) {
-            throw;
+            Error(4);
+            return;
         }
         if (token.transferFrom(msg.sender, this, _buyIn)) {
             seats[_pos].senderAddr = msg.sender;
