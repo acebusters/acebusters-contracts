@@ -56,7 +56,7 @@ contract Table {
         lastHand = new uint96[](seats.length - 1);
         for (uint i = 1; i < seats.length; i++) {
             if (seats[i].amount > 0 && seats[i].lastHand == 0) {
-                addr[i - 1] = seats[i].senderAddr;
+                addr[i - 1] = seats[i].signerAddr;
                 amount[i - 1] = seats[i].amount;
                 lastHand[i - 1] = seats[i].lastHand;
             }
