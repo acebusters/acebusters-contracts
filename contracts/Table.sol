@@ -29,7 +29,7 @@ contract Table {
         address senderAddr;
         uint96 amount;
         address signerAddr;
-        uint96 lastHand;
+        uint96 exitHand;
     }
     
     Hand[] public hands;
@@ -46,22 +46,29 @@ contract Table {
         oracle = _oracle;
         smallBlind = _smallBlind;
         seats.length = _seats + 1;
-        lastHandNetted = 0;
+        // checked in settle() for seatMap[oracle] !== 0
         seatMap[_oracle] = _seats + 1;
+        // lastHandNetted and player's exitHand are critical for security of funds.
+        // in payout() table checks (lastHandNetted >=  seat.exitHand) for grant.
+        // exitHand is provided by oracle with leave receipt. On join, exitHand is
+        // set to 0 though.
+        // if lhn == 0, players would be able to exit hand 0 without leave receipt.
+        // hence, table starts with lhn = 1, oracle's first handId is lhn + 1 = 2. 
+        lastHandNetted = 1;
     }
     
-    function getLineup() constant returns (uint, address[] addr, uint[] amount, uint96[] lastHand) {
-        addr = new address[](seats.length - 1);
-        amount = new uint[](seats.length - 1);
-        lastHand = new uint96[](seats.length - 1);
+    function getLineup() constant returns (uint, address[] addresses, uint[] amounts, uint96[] exitHands) {
+        addresses = new address[](seats.length - 1);
+        amounts = new uint[](seats.length - 1);
+        exitHands = new uint96[](seats.length - 1);
         for (uint i = 1; i < seats.length; i++) {
-            if (seats[i].amount > 0 && seats[i].lastHand == 0) {
-                addr[i - 1] = seats[i].signerAddr;
-                amount[i - 1] = seats[i].amount;
-                lastHand[i - 1] = seats[i].lastHand;
+            if (seats[i].amount > 0 && seats[i].exitHand == 0) {
+                addresses[i - 1] = seats[i].signerAddr;
+                amounts[i - 1] = seats[i].amount;
+                exitHands[i - 1] = seats[i].exitHand;
             }
         }
-        return (lastHandNetted, addr, amount, lastHand);
+        return (lastHandNetted, addresses, amounts, exitHands);
     }
     
     function getIn(uint96 _handId, address _addr) constant returns (uint96) {
@@ -207,14 +214,12 @@ contract Table {
           return;
         }
 
-        seats[seatMap[signer]].lastHand = handId;
+        seats[seatMap[signer]].exitHand = handId;
         //create new netting request
         if (lastHandNetted < handId && lastNettingRequestHandId < handId) {
             NettingRequest(handId);
             lastNettingRequestHandId = handId;
             lastNettingRequestTime = now;
-        } else {
-            Error(0x0);
         }
     }
 
@@ -243,13 +248,17 @@ contract Table {
     function payoutFrom(address _sender) {
         uint pos = seatMap[_sender];
         Seat seat = seats[pos];
-        if (lastHandNetted <  seat.lastHand)
+        if (seat.exitHand == 0)
+            throw;
+        if (lastHandNetted <  seat.exitHand)
             throw;
         if (!token.transfer(_sender, seats[pos].amount))
             throw;
+        delete seatMap[seat.senderAddr];
+        delete seatMap[seat.signerAddr];
         delete seats[pos];
     }
-    
+
     function _storeDist(bytes _receipt) internal returns (uint) {
         //parse 
         uint handId;
