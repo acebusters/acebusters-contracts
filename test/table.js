@@ -44,9 +44,7 @@ contract('Table', function(accounts) {
       // <20 bytes destination>
       // <20 bytes signer addr>
       // <32 r><32 s><1 v>
-      var data = '0x000000000000000000000003'+table.address.replace('0x','')+P1_ADDR.replace('0x','');
-      var sig = sign(ORACLE_PRIV, data);
-      var leaveReceipt = data + sig.r.replace('0x','') + sig.s.replace('0x','') + sig.v.toString(16);
+      const leaveReceipt = Receipt.leave(table.address, 3, P1_ADDR).signToHex(ORACLE_PRIV);
       return table.leave(leaveReceipt);
     }).then(function(txHash){
       return table.seats.call(2);
@@ -195,10 +193,8 @@ contract('Table', function(accounts) {
       return table.getOut.call(6, P1_ADDR);
     }).then(function(outVal){
       assert.equal(outVal[0].toNumber(), 32000, 'dist submission failed.');
-
-      var data = '0x000000000000000000000007'+table.address.replace('0x','')+P1_ADDR.replace('0x','');
-      var sig = sign(ORACLE_PRIV, data);
-      var leaveReceipt = data + sig.r.replace('0x','') + sig.s.replace('0x','') + sig.v.toString(16);
+      // make leave receipt
+      const leaveReceipt = Receipt.leave(table.address, 7, P1_ADDR).signToHex(ORACLE_PRIV);
       return table.leave(leaveReceipt);
     }).then(function(txHash){
       return table.lastNettingRequestHandId.call();

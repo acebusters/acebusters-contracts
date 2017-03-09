@@ -1,5 +1,6 @@
 module.exports = function() {
   this.ethUtil = require('ethereumjs-util');
+  this.Receipt = require('poker-helper').Receipt;
   this.sign = function(privStr, payloadStr) {
     const priv = new Buffer(privStr.replace('0x', ''), 'hex');
     const payload = new Buffer(payloadStr.replace('0x', ''), 'hex');

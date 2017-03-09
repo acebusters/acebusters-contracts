@@ -9,6 +9,7 @@ contract Table {
     event Join(address addr, uint256 amount);
     event NettingRequest(uint hand);
     event Netted(uint hand);
+    event Leave(address addr);
     event Error(uint errorCode);
     // 1 : Not the right amount
     // 2 : No beggars
@@ -62,11 +63,9 @@ contract Table {
         amounts = new uint[](seats.length - 1);
         exitHands = new uint96[](seats.length - 1);
         for (uint i = 1; i < seats.length; i++) {
-            if (seats[i].amount > 0 && seats[i].exitHand == 0) {
-                addresses[i - 1] = seats[i].signerAddr;
-                amounts[i - 1] = seats[i].amount;
-                exitHands[i - 1] = seats[i].exitHand;
-            }
+            addresses[i - 1] = seats[i].signerAddr;
+            amounts[i - 1] = seats[i].amount;
+            exitHands[i - 1] = seats[i].exitHand;
         }
         return (lastHandNetted, addresses, amounts, exitHands);
     }
@@ -189,22 +188,22 @@ contract Table {
     }
     
     function leave(bytes _leaveReceipt) {
-        uint96 handId;
-        address dest;
+        uint32 handId;
+        uint56 dest;
         address signer;
         bytes32 r;
         bytes32 s;
         uint8 v;
 
         assembly {
-            handId := mload(add(_leaveReceipt, 12))
-            dest := mload(add(_leaveReceipt, 32))
-            signer := mload(add(_leaveReceipt, 52))
-            r := mload(add(_leaveReceipt, 84))
-            s := mload(add(_leaveReceipt, 116))
-            v := mload(add(_leaveReceipt, 117))
+            handId := mload(add(_leaveReceipt, 4))
+            dest := mload(add(_leaveReceipt, 11))
+            signer := mload(add(_leaveReceipt, 31))
+            r := mload(add(_leaveReceipt, 63))
+            s := mload(add(_leaveReceipt, 95))
+            v := mload(add(_leaveReceipt, 96))
         }
-        if (dest != address(this)) {
+        if (dest != uint56(address(this))) {
           Error(7);
           return;
         }
@@ -254,6 +253,7 @@ contract Table {
             throw;
         if (!token.transfer(_sender, seats[pos].amount))
             throw;
+        Leave(seat.signerAddr);
         delete seatMap[seat.senderAddr];
         delete seatMap[seat.signerAddr];
         delete seats[pos];
