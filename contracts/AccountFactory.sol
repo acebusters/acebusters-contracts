@@ -1,6 +1,7 @@
-pragma solidity ^0.4.7;
-import "AccountController.sol";
-import "AccountProxy.sol";
+pragma solidity ^0.4.8;
+
+import "./AccountController.sol";
+import "./AccountProxy.sol";
 
 contract AccountFactory {
 

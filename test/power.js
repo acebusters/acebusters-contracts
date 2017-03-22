@@ -1,12 +1,18 @@
+var Token = artifacts.require('../contracts/Token.sol');
+var Power = artifacts.require('../contracts/Power.sol');
+
 contract('Power', function(accounts) {
 
   it("should allow to power up and power down.", function(done) {
 
-    var power = Power.deployed();
+    var power;
     var token;
     var downtime = 12*7*24*3600; // 3 month
 
-    Token.new(accounts[0], 2, power.address).then(function(contract) {
+    Power.new().then((contract) => {
+      power = contract;
+      return Token.new(accounts[0], 2, power.address);
+    }).then(function(contract) {
       token = contract;
       return power.configure(accounts[3], token.address, downtime);
     }).then(function() {  

@@ -1,6 +1,6 @@
-pragma solidity ^0.4.7;
+pragma solidity ^0.4.8;
 
-import "Token.sol";
+import "./Token.sol";
 
 contract Power {
     

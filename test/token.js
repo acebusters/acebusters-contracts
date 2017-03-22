@@ -1,3 +1,5 @@
+var Token = artifacts.require('../contracts/Token.sol');
+
 contract('Token', function(accounts) {
 
   var promisify = function(watcher){

@@ -1,5 +1,6 @@
 pragma solidity ^0.4.7;
-import "Token.sol";
+
+import "./Token.sol";
 
 contract Table {
 
@@ -56,6 +57,8 @@ contract Table {
         // if lhn == 0, players would be able to exit hand 0 without leave receipt.
         // hence, table starts with lhn = 1, oracle's first handId is lhn + 1 = 2. 
         lastHandNetted = 1;
+        lastNettingRequestHandId = 1;
+        lastNettingRequestTime = now;
     }
     
     function getLineup() constant returns (uint, address[] addresses, uint[] amounts, uint96[] exitHands) {

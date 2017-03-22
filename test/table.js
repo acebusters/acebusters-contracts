@@ -1,3 +1,5 @@
+var Token = artifacts.require('../contracts/Token.sol');
+var Table = artifacts.require('../contracts/Table.sol');
 require('./helpers.js')()
 
 contract('Table', function(accounts) {
@@ -13,10 +15,13 @@ contract('Table', function(accounts) {
 
   it("should join table, then settle, then leave.", function(done) {
 
-    var token = Token.deployed();
+    var token;
     var table;
 
-    Table.new(token.address, ORACLE, 5000, 2).then(function(contract) {
+    Token.new().then((contract) => {
+      token = contract;
+      return Table.new(token.address, ORACLE, 5000, 2);
+    }).then(function(contract) {
       table = contract;
       return table.smallBlind.call();
     }).then(function(blind) {
@@ -78,7 +83,7 @@ contract('Table', function(accounts) {
 
   it('should join table, then net, then leave.', function(done) {
 
-    var token = Token.deployed();
+    var token;
     var table;
 
     //bet 12000 p_0 hand 4 12 + 12 + 4 + 20 
@@ -122,16 +127,23 @@ contract('Table', function(accounts) {
     var distSig60 = signStr(ORACLE_PRIV, dist60);
 
 
-    Table.new(token.address, ORACLE, 5000, 2).then(function(contract) {
+    Token.new().then((contract) => {
+      token = contract;
+      return Table.new(token.address, ORACLE, 5000, 2);
+    }).then(function(contract) {
       table = contract;
       return table.smallBlind.call();
     }).then(function(blind) {
       assert.equal(blind.toNumber(), 5000, 'config failed.');
-      return token.approve(table.address, 300000, {from: accounts[0]});
+      return token.issue(2000000);
+    }).then(function(txHash){
+      return token.approve(table.address, 1000000, {from: accounts[0]});
+    }).then(function(txHash){
+      return token.transfer(accounts[1], 1000000, {from: accounts[0]});
     }).then(function(txHash){
       return table.join(300000, P0_ADDR, 1, "test", {from: accounts[0]});
     }).then(function(){
-      return token.approve(table.address, 400000, {from: accounts[1]});
+      return token.approve(table.address, 400000, {from: accounts[1]});      
     }).then(function(txHash){
       return table.join(355360, P1_ADDR, 2, "test2", {from: accounts[1]});
     }).then(function(txHash){
@@ -142,7 +154,6 @@ contract('Table', function(accounts) {
       var betSigs4 = '0x' + betSig41 + betSig42 + betSig411;
       return table.submitBets(bets4, betSigs4);
     }).then(function(txHash){
-
       return table.getIn.call(4, P0_ADDR);
     }).then(function(inVal){
       assert.equal(inVal.toNumber(), 15000, 'bet submission failed.');

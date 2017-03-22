@@ -1,15 +1,13 @@
+var AccountProxy = artifacts.require('../contracts/AccountProxy.sol');
+var AccountController = artifacts.require('../contracts/AccountController.sol');
+var Token = artifacts.require('../contracts/Token.sol');
 require('./helpers.js')()
 
 contract("AccountController", (accounts) => {
 
   var signerAddr1 = '0xf3beac30c498d9e26865f34fcaa57dbb935b0d74';
   var signerPriv1 = '278a5de700e29faae8e40e366ec5012b5ec63d36ec77e8a2417154cc1d25383f';
-  var token;
-
-  before(() => {
-    proxy = AccountProxy.deployed();
-    token = Token.deployed();
-  });
+  var token, proxy;
 
   var wait = (seconds) => new Promise((resolve) => setTimeout(() => resolve(), seconds * 1000));
 
@@ -17,7 +15,13 @@ contract("AccountController", (accounts) => {
     var controller;
     var signer = accounts[0];
     var recovery = accounts[1];
-    AccountController.new(proxy.address, signer, recovery, 0).then((contract) => {
+    AccountProxy.new().then((contract) => {
+      proxy = contract;
+      return Token.new();
+    }).then((contract) => {
+      token = contract;
+      return AccountController.new(proxy.address, signer, recovery, 0);
+    }).then((contract) => {
       controller = contract;
       return controller.proxy.call();
     }).then((proxyAddr) => {
@@ -38,7 +42,13 @@ contract("AccountController", (accounts) => {
     var unknown = accounts[2];
     // Transfer ownership of proxy to the controller contract.
     var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
-    AccountController.new(proxy.address, signer, accounts[0], 0).then((contract) => {
+    AccountProxy.new().then((contract) => {
+      proxy = contract;
+      return Token.new();
+    }).then((contract) => {
+      token = contract;
+      return AccountController.new(proxy.address, signer, accounts[0], 0);
+    }).then((contract) => {
       controller = contract;
       return proxy.transfer(controller.address);
     }).then(() => {
@@ -96,6 +106,9 @@ contract("AccountController", (accounts) => {
     var proxyContract;
     AccountProxy.new().then((contract) => {
       proxyContract = contract;
+      return Token.new();
+    }).then((contract) => {
+      token = contract;
       return AccountController.new(proxyContract.address, signerAddr1, accounts[0], 0);
     }).then((contract) => {
       controller = contract;
@@ -138,7 +151,10 @@ contract("AccountController", (accounts) => {
     var signer = accounts[1];
     var newSigner = accounts[2];
     var unknown = accounts[3];
-    AccountController.new(proxy.address, signer, accounts[0], 0).then((contract) => {
+    AccountProxy.new().then((contract) => {
+      proxy = contract;
+      return AccountController.new(proxy.address, signer, accounts[0], 0);
+    }).then((contract) => {
       controller = contract;
       // try to change signer address from signer address
       return controller.changeSigner(newSigner, {from: unknown});
