@@ -84,6 +84,8 @@ contract Table {
     // This function is called if players agree to settle without
     // the payment channel. a list of new balances at specific signed by
     // all players and the oracle expected here.
+    // TODO(ab): think about rebuy, total balances are probably no good idea
+    // relativ balances better to model rebuy?
     function settle(bytes _newBalances, bytes _sigs) {
         // keeping track of who has signed,
         // we'll use the receipt signing key for this now.
@@ -147,7 +149,9 @@ contract Table {
         
         //set new balances
         for (i = 0; i < addr.length; i++) {
+          if (addr[i] != oracle) {
             seats[seatMap[addr[i]]].amount = uint96(amount[i]);
+          }
         }
         lastHandNetted = handId;
         Netted(handId);
