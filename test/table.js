@@ -56,15 +56,15 @@ contract('Table', function(accounts) {
     }).then(function(seat){
       // reading the exitHand from hand
       assert.equal(seat[3].toNumber(), 3, 'leave request failed.');
-
-      var settlement = '0x000000000000000000000003'+table.address.replace('0x','') + 'f3beac30c498d9e26865f34fcaa57dbb935b0d74000000000000000000050000e10f3d125e5f4c753a6456fc37123cf17c6900f2000000000000000000050000';
+      var settlement = '0x00000003'+table.address.replace('0x','').substring(8, 40) + '0000000000050000f3beac30c498d9e26865f34fcaa57dbb935b0d740000000000050000e10f3d125e5f4c753a6456fc37123cf17c6900f2';
       var oSig = sign(ORACLE_PRIV, settlement);
-      var sigs = '0x' + oSig.r.replace('0x','') + oSig.s.replace('0x','') + oSig.v.toString(16);
+      var pSig = sign(P1_PRIV, settlement);
+      var sigs = '0x' + oSig.r.replace('0x','') + oSig.s.replace('0x','') + oSig.v.toString(16) + pSig.r.replace('0x','') + pSig.s.replace('0x','') + pSig.v.toString(16);
       return table.settle(settlement, sigs);
     }).then(function(txHash){
       return table.lastHandNetted.call();
     }).then(function(exitHand){
-      assert.equal(exitHand, 3, 'settlement failed for last hand.');
+      assert.equal(exitHand.toNumber(), 3, 'settlement failed for last hand.');
     }).then(function(seat){
       return table.seats.call(1);
     }).then(function(seat){

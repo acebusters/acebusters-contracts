@@ -87,24 +87,40 @@ contract Table {
     function settle(bytes _newBalances, bytes _sigs) {
         // keeping track of who has signed,
         // we'll use the receipt signing key for this now.
-        uint96 handId;
-        address dest;
+        uint32 handId;
+        uint128 dest;
         address[] memory addr;
-        uint96[] memory amount;
+        uint64[] memory amount;
         assembly {
-            handId := mload(add(_newBalances, 12))
-            dest := mload(add(_newBalances, 32))
+            handId := mload(add(_newBalances, 4))
+            dest := mload(add(_newBalances, 20))
         }
         if (handId <= lastHandNetted) {
             return;
         }
-        if (dest != address(this)) {
+        if (dest != uint128(address(this))) {
             return;
         }
+
+        for (uint i = 0; i < _sigs.length / 65; i++) {
+            uint8 v;
+            bytes32 r;
+            bytes32 s;
+            assembly {
+                r := mload(add(_sigs, add(32, mul(i, 65))))
+                s := mload(add(_sigs, add(64, mul(i, 65))))
+                v := mload(add(_sigs, add(65, mul(i, 65))))
+            }
+            if (seatMap[ecrecover(sha3(_newBalances), v, r, s)] == 0) {
+              Error(17);
+              return;
+            }
+        }
+        
         assembly {
             //prepare loop
             let i := 0
-            let len := div(sub(calldataload(68), 32),32)
+            let len := div(sub(calldataload(68), 20),28)
             //create addr array
             addr := mload(0x40)
             mstore(addr, 0x20)
@@ -119,33 +135,19 @@ contract Table {
             loop:
                 jumpi(end, eq(i, len))
                 {
-                    let elem := mload(add(_newBalances, add(52, mul(i, 0x20))))
-                    mstore(add(addr, add(32, mul(i, 0x20))), elem)
-                    elem := mload(add(_newBalances, add(64, mul(i, 0x20))))
+                    let elem := mload(add(_newBalances, add(28, mul(i, 28))))
                     mstore(add(amount, add(32, mul(i, 0x20))), elem)
+                    elem := mload(add(_newBalances, add(48, mul(i, 28))))
+                    mstore(add(addr, add(32, mul(i, 0x20))), elem)
                     i := add(i, 1)
                 }
                 jump(loop)
             end:
         }
-
-        for (uint i = 0; i < _sigs.length / 65; i++) {
-            uint8 v;
-            bytes32 r;
-            bytes32 s;
-            assembly {
-                r := mload(add(_sigs, add(32, mul(i, 65))))
-                s := mload(add(_sigs, add(64, mul(i, 65))))
-                v := mload(add(_sigs, add(65, mul(i, 65))))
-            }
-            if (seatMap[ecrecover(sha3(_newBalances), v, r, s)] == 0) {
-                return;
-            }
-        }
         
         //set new balances
         for (i = 0; i < addr.length; i++) {
-            seats[seatMap[addr[i]]].amount = amount[i];
+            seats[seatMap[addr[i]]].amount = uint96(amount[i]);
         }
         lastHandNetted = handId;
         Netted(handId);
