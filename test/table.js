@@ -13,6 +13,8 @@ contract('Table', function(accounts) {
   const ORACLE = '0x82e8c6cf42c8d1ff9594b17a3f50e94a12cc860f';
   const ORACLE_PRIV = '0x94890218f2b0d04296f30aeafd13655eba4c5bbf1770273276fee52cbe3f2cb4';
 
+  const P_EMPTY = '0x0000000000000000000000000000000000000000';
+
   it("should join table, then settle, then leave.", function(done) {
 
     var token;
@@ -45,10 +47,12 @@ contract('Table', function(accounts) {
     }).then(function(seat){
       assert.equal(seat[0], accounts[1], 'join failed.');
       // create the leave receipt here. structure:
-      // <12 bytes hand ID>
-      // <20 bytes destination>
+      // <4 bytes hand ID>
+      // <7 bytes destination>
+      // <1 byte v>
       // <20 bytes signer addr>
-      // <32 r><32 s><1 v>
+      // <32 r>
+      // <32 s>
       const leaveReceipt = Receipt.leave(table.address, 3, P1_ADDR).signToHex(ORACLE_PRIV);
       return table.leave(leaveReceipt);
     }).then(function(txHash){
@@ -77,6 +81,77 @@ contract('Table', function(accounts) {
       return table.seats.call(2);
     }).then(function(seat){
       assert.equal(seat[1].toNumber(), 0, 'payout failed.');
+    }).then(done).catch(done);
+
+  });
+
+  it("should join table, then settle, then leave broke.", function(done) {
+
+    var token;
+    var table;
+
+    Token.new().then((contract) => {
+      token = contract;
+      return Table.new(token.address, ORACLE, 5000, 2);
+    }).then(function(contract) {
+      table = contract;
+      return table.smallBlind.call();
+    }).then(function(blind) {
+      assert.equal(blind.toNumber(), 5000, 'config failed.');
+      return token.issue(2000000);
+    }).then(function(txHash){
+      return token.approve(table.address, 1000000, {from: accounts[0]});
+    }).then(function(txHash){
+      return token.transfer(accounts[1], 1000000, {from: accounts[0]});
+    }).then(function(txHash){
+      return table.join(300000, P0_ADDR, 1, "test", {from: accounts[0]});
+    }).then(function(){
+      return token.approve(table.address, 1000000, {from: accounts[1]});
+    }).then(function(txHash){
+      return table.join(355360, P1_ADDR, 2, "test2", {from: accounts[1]});
+    }).then(function(txHash){
+      return table.seats.call(1);
+    }).then(function(seat){
+      assert.equal(seat[0], accounts[0], 'join failed.');
+      return table.seats.call(2);
+    }).then(function(seat){
+      assert.equal(seat[0], accounts[1], 'join failed.');
+      // create the leave receipt here. structure:
+      // <4 bytes hand ID>
+      // <7 bytes destination>
+      // <1 byte v>
+      // <20 bytes signer addr>
+      // <32 r>
+      // <32 s>
+      const leaveReceipt = Receipt.leave(table.address, 3, P0_ADDR).signToHex(ORACLE_PRIV);
+      return table.leave(leaveReceipt);
+    }).then(function(txHash){
+      return table.seats.call(1);
+    }).then(function(seat){
+      // reading the exitHand from hand
+      assert.equal(seat[3].toNumber(), 3, 'leave request failed.');
+      // prepare settlement
+      var settlement = '0x00000003'+table.address.replace('0x','').substring(8, 40) + '0000000000000000' + P0_ADDR.replace('0x','') + '0000000000090000' + P1_ADDR.replace('0x','') + '0000000000010000' + ORACLE.replace('0x', '');
+      var oSig = sign(ORACLE_PRIV, settlement);
+      var pSig = sign(P0_PRIV, settlement);
+      var sigs = '0x' + oSig.r.replace('0x','') + oSig.s.replace('0x','') + oSig.v.toString(16) + pSig.r.replace('0x','') + pSig.s.replace('0x','') + pSig.v.toString(16);
+      return table.settle(settlement, sigs);
+    }).then(function(txHash){
+      return table.lastHandNetted.call();
+    }).then(function(exitHand){
+      assert.equal(exitHand.toNumber(), 3, 'settlement failed for last hand.');
+    }).then(function(seat){
+      return table.seats.call(1);
+    }).then(function(seat){
+      assert.equal(seat[1].toNumber(), 0, 'settlement failed for seat pos 1.');
+      return table.seats.call(2);
+    }).then(function(seat){
+      assert.equal(seat[1].toNumber(), 589824, 'settlement failed for seat pos 2.');
+      return table.payout({from: accounts[0]});
+    }).then(function(txHash){
+      return table.seats.call(1);
+    }).then(function(seat){
+      assert.equal(seat[0], P_EMPTY, 'payout failed.');
     }).then(done).catch(done);
 
   });

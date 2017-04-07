@@ -256,12 +256,16 @@ contract Table {
     function payoutFrom(address _sender) {
         uint pos = seatMap[_sender];
         Seat seat = seats[pos];
-        if (seat.exitHand == 0)
+        if (lastHandNetted < seat.exitHand) {
             throw;
-        if (lastHandNetted <  seat.exitHand)
+        }
+        if (seat.exitHand == 0) {
             throw;
-        if (!token.transfer(_sender, seats[pos].amount))
-            throw;
+        }
+        if (seat.amount > 0) {
+            if (!token.transfer(_sender, seats[pos].amount))
+                throw;
+        }
         Leave(seat.signerAddr);
         delete seatMap[seat.senderAddr];
         delete seatMap[seat.signerAddr];
