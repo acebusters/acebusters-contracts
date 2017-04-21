@@ -196,28 +196,24 @@ contract Table {
         }
     }
     
-    function leave(bytes _leaveReceipt) {
-        uint32 handId;
-        uint56 dest;
-        address signer;
-        bytes32 r;
-        bytes32 s;
+    function leave(bytes32 _r, bytes32 _s, bytes32 _pl) {
         uint8 v;
+        uint56 dest;
+        uint32 handId;
+        address signer;
 
         assembly {
-            handId := mload(add(_leaveReceipt, 4))
-            dest := mload(add(_leaveReceipt, 11))
-            signer := mload(add(_leaveReceipt, 31))
-            r := mload(add(_leaveReceipt, 63))
-            s := mload(add(_leaveReceipt, 95))
-            v := mload(add(_leaveReceipt, 96))
+            v := calldataload(37)
+            dest := calldataload(44)
+            handId := calldataload(48)
+            signer := calldataload(68)
         }
         if (dest != uint56(address(this))) {
           Error(7);
           return;
         }
         
-        if (ecrecover(sha3(handId, dest, signer), v, r, s) != oracle) {
+        if (ecrecover(sha3(uint8(0), dest, handId, signer), v, _r, _s) != oracle) {
           Error(6);
           return;
         }

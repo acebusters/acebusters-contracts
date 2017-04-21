@@ -9,6 +9,7 @@
   "dependencies": {
     "babel-runtime": "^6.23.0",
     "ethereumjs-util": "^5.1.1",
-    "poker-helper": "^0.2.1"
+    "poker-helper": "^0.3.14",
+    "utf8": "^2.1.2"
   }
 }
