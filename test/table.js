@@ -46,15 +46,9 @@ contract('Table', function(accounts) {
       return table.seats.call(2);
     }).then(function(seat){
       assert.equal(seat[0], accounts[1], 'join failed.');
-      // create the leave receipt here. structure:
-      // <4 bytes hand ID>
-      // <7 bytes destination>
-      // <1 byte v>
-      // <20 bytes signer addr>
-      // <32 r>
-      // <32 s>
-      const leaveReceipt = Receipt.leave(table.address, 3, P1_ADDR).signToHex(ORACLE_PRIV);
-      return table.leave(leaveReceipt);
+      // create the leave receipt here.
+      const leaveReceipt = new Receipt(table.address).leave(3, P1_ADDR).sign(ORACLE_PRIV);
+      return table.leave(...Receipt.parseToParams(leaveReceipt));
     }).then(function(txHash){
       return table.seats.call(2);
     }).then(function(seat){
@@ -116,15 +110,9 @@ contract('Table', function(accounts) {
       return table.seats.call(2);
     }).then(function(seat){
       assert.equal(seat[0], accounts[1], 'join failed.');
-      // create the leave receipt here. structure:
-      // <4 bytes hand ID>
-      // <7 bytes destination>
-      // <1 byte v>
-      // <20 bytes signer addr>
-      // <32 r>
-      // <32 s>
-      const leaveReceipt = Receipt.leave(table.address, 3, P0_ADDR).signToHex(ORACLE_PRIV);
-      return table.leave(leaveReceipt);
+      // create the leave receipt here.
+      const leaveReceipt = new Receipt(table.address).leave(3, P0_ADDR).sign(ORACLE_PRIV);
+      return table.leave(...Receipt.parseToParams(leaveReceipt));
     }).then(function(txHash){
       return table.seats.call(1);
     }).then(function(seat){
@@ -280,8 +268,8 @@ contract('Table', function(accounts) {
     }).then(function(outVal){
       assert.equal(outVal[0].toNumber(), 32000, 'dist submission failed.');
       // make leave receipt
-      const leaveReceipt = Receipt.leave(table.address, 7, P1_ADDR).signToHex(ORACLE_PRIV);
-      return table.leave(leaveReceipt);
+      const leaveReceipt = new Receipt(table.address).leave(7, P1_ADDR).sign(ORACLE_PRIV);
+      return table.leave(...Receipt.parseToParams(leaveReceipt));
     }).then(function(txHash){
       return table.lastNettingRequestHandId.call();
     }).then(function(lastNettingRequestHandId){
