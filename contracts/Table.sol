@@ -4,20 +4,21 @@ import "./Token.sol";
 
 contract Table {
 
-    Token public token;
-    uint public smallBlind;
-
     event Join(address addr, uint256 amount);
     event NettingRequest(uint hand);
     event Netted(uint hand);
     event Leave(address addr);
-    event Error(uint errorCode);
-    // 1 : Not the right amount
-    // 2 : No beggars
+    event Error(address addr, uint errorCode);
     // 3 : No duplicate players
     // 4 : Seat not available
+    // 5 : table closing
+    // 6 : table reopened
 
     address public oracle;
+    uint96 public smallBlind;
+    Token public token;
+    
+    bool public active;
     
     struct Hand {
         //in
@@ -31,19 +32,19 @@ contract Table {
         address senderAddr;
         uint96 amount;
         address signerAddr;
-        uint96 exitHand;
+        uint32 exitHand;
     }
     
     Hand[] public hands;
     Seat[] public seats;
 
     mapping(address => uint) public seatMap; //both sender and receipt addr mapped here
-    uint public lastHandNetted;
+    uint32 public lastHandNetted;
     
-    uint public lastNettingRequestHandId;
+    uint32 public lastNettingRequestHandId;
     uint public lastNettingRequestTime;
     
-    function Table(address _token, address _oracle, uint _smallBlind, uint _seats) {
+    function Table(address _token, address _oracle, uint96 _smallBlind, uint _seats) {
         token = Token(_token);
         oracle = _oracle;
         smallBlind = _smallBlind;
@@ -81,6 +82,77 @@ contract Table {
         return (hands[_handId].outs[_addr], hands[_handId].claimCount);
     }
     
+    function toggleActive(bytes _toggleReceipt) {
+        uint32 handId;
+        address dest;
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+
+        assembly {
+            handId := mload(add(_toggleReceipt, 4))
+            dest := mload(add(_toggleReceipt, 24))
+            r := mload(add(_toggleReceipt, 56))
+            s := mload(add(_toggleReceipt, 88))
+            v := mload(add(_toggleReceipt, 89))
+        }
+        if (dest != address(this)) {
+          throw;
+        }
+        
+        if (lastHandNetted != handId) {
+          throw;
+        }
+        
+        if (ecrecover(sha3(handId, dest), v, r, s) != oracle) {
+          throw;
+        }
+
+        active = !active;
+        if (!active) {
+          Error(0x0, 5);
+        } else {
+          Error(0x0, 6);
+        }
+    }
+    
+    function withdrawRake(bytes32 _r, bytes32 _s, bytes32 _pl) {
+        uint8 v;
+        address dest;
+        uint32 handId;
+
+        assembly {
+            v := calldataload(37)
+            dest := calldataload(57)
+            handId := calldataload(61)
+        }
+
+        if (dest != address(this)) {
+          throw;
+        }
+        
+        if (lastHandNetted != handId) {
+          throw;
+        }
+        
+        if (ecrecover(sha3(uint8(0), dest, handId, uint56(0)), v, _r, _s) != oracle) {
+          throw;
+        }
+
+        uint playerBal = 0;
+        for (uint i = 1; i < seats.length; i++ ) {
+            playerBal += seats[i].amount;
+        }
+        uint totalBal = token.balanceOf(address(this));
+        if (totalBal < playerBal) {
+          throw;
+        }
+        
+        if (totalBal - playerBal > 0) {
+          token.transfer(oracle, totalBal - playerBal);
+        }
+    }
+    
     // This function is called if players agree to settle without
     // the payment channel. a list of new balances at specific signed by
     // all players and the oracle expected here.
@@ -114,8 +186,7 @@ contract Table {
                 v := mload(add(_sigs, add(65, mul(i, 65))))
             }
             if (seatMap[ecrecover(sha3(_newBalances), v, r, s)] == 0) {
-              Error(17);
-              return;
+              throw;
             }
         }
         
@@ -157,18 +228,36 @@ contract Table {
         Netted(handId);
     }
     
+    function rebuy(uint96 _buyIn) {
+      uint pos = 0;
+      for (uint i = 1; i < seats.length; i++ ) {
+        if (seats[i].senderAddr == msg.sender) {
+          pos = i;
+        }
+      }
+      if (pos == 0) {
+          throw;
+      }
+      //check the dough
+      if (40 * smallBlind > _buyIn || (_buyIn + seats[pos].amount) > 400 * smallBlind) {
+        throw;
+      }
+      if (token.transferFrom(msg.sender, this, _buyIn)) {
+        seats[pos].amount += _buyIn;
+        Join(msg.sender, _buyIn);
+      }
+    }
+
     function join(uint96 _buyIn, address _signerAddr, uint _pos) {
         
         //check the dough
         if (40 * smallBlind > _buyIn || _buyIn > 400 * smallBlind) {
-            Error(1);
-            return;
+            throw;
         }
         
         //no beggars
         if (token.balanceOf(msg.sender) < _buyIn || token.allowance(msg.sender, this) < _buyIn) {
-            Error(2);
-            return;
+            throw;
         }
         
         //avoid duplicate players
@@ -177,13 +266,13 @@ contract Table {
                 seats[i].signerAddr == msg.sender ||
                 seats[i].senderAddr == _signerAddr ||
                 seats[i].signerAddr == _signerAddr) {
-                    Error(3);
+                    Error(msg.sender, 3);
                     return;
                 }
         
         //seat player
         if (_pos == 0 || seats[_pos].amount > 0 || seats[_pos].senderAddr != 0) {
-            Error(4);
+            Error(msg.sender, 4);
             return;
         }
         if (token.transferFrom(msg.sender, this, _buyIn)) {
@@ -209,13 +298,11 @@ contract Table {
             signer := calldataload(68)
         }
         if (dest != uint56(address(this))) {
-          Error(7);
-          return;
+          throw;
         }
         
         if (ecrecover(sha3(uint8(0), dest, handId, signer), v, _r, _s) != oracle) {
-          Error(6);
-          return;
+          throw;
         }
 
         seats[seatMap[signer]].exitHand = handId;
