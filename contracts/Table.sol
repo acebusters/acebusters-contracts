@@ -116,20 +116,17 @@ contract Table {
         }
     }
     
-    function withdrawRake(bytes _withdrawReceipt) {
-        uint32 handId;
-        address dest;
-        bytes32 r;
-        bytes32 s;
+    function withdrawRake(bytes32 _r, bytes32 _s, bytes32 _pl) {
         uint8 v;
+        address dest;
+        uint32 handId;
 
         assembly {
-            handId := mload(add(_withdrawReceipt, 4))
-            dest := mload(add(_withdrawReceipt, 24))
-            r := mload(add(_withdrawReceipt, 56))
-            s := mload(add(_withdrawReceipt, 88))
-            v := mload(add(_withdrawReceipt, 89))
+            v := calldataload(37)
+            dest := calldataload(57)
+            handId := calldataload(61)
         }
+
         if (dest != address(this)) {
           throw;
         }
@@ -138,7 +135,7 @@ contract Table {
           throw;
         }
         
-        if (ecrecover(sha3(handId, dest), v, r, s) != oracle) {
+        if (ecrecover(sha3(uint8(0), dest, handId, uint56(0)), v, _r, _s) != oracle) {
           throw;
         }
 
@@ -231,7 +228,7 @@ contract Table {
         Netted(handId);
     }
     
-    function rebuy(uint96 _buyIn, address _signerAddr) {
+    function rebuy(uint96 _buyIn) {
       uint pos = 0;
       for (uint i = 1; i < seats.length; i++ ) {
         if (seats[i].senderAddr == msg.sender) {
@@ -242,7 +239,7 @@ contract Table {
           throw;
       }
       //check the dough
-      if (40 * smallBlind > _buyIn || (_buyIn + seats[i].amount) > 400 * smallBlind) {
+      if (40 * smallBlind > _buyIn || (_buyIn + seats[pos].amount) > 400 * smallBlind) {
         throw;
       }
       if (token.transferFrom(msg.sender, this, _buyIn)) {
