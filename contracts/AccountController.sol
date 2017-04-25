@@ -31,16 +31,34 @@ contract AccountController {
   // used to change the signerAddr, if user lost privKey
   address public recovery;
 
+  address factory;
+
   event Event(bytes32 action);
   event Error(bytes32 error);
 
-  modifier onlyRecovery() {
-    if (msg.sender == recovery) {
-      _;
-    } else {
+  modifier onlyRecovery(bytes32 _r, bytes32 _s) {
+    uint8 v;
+    uint56 target;
+    uint248 rest;
+
+    assembly {
+        v := calldataload(37)
+        target := calldataload(44)
+        rest := calldataload(68)
+    }
+
+    if (target != uint56(address(this))) {
       // Access denied.
       Error(0x4163636573732064656e6965642e);
+      return;
     }
+        
+    if (ecrecover(sha3(uint8(0), rest), v, _r, _s) != recovery) {
+      // Access denied.
+      Error(0x4163636573732064656e6965642e);
+      return;
+    }
+    _;
   }
 
   modifier onlySigner() {
@@ -85,6 +103,7 @@ contract AccountController {
     signer = _signer;
     recovery = _recovery;
     timeLock = _timeLock;
+    factory = msg.sender;
   }
 
   function forward(bytes32 _nonceAndAddr, bytes _data, bytes32 _r, bytes32 _s, uint8 _v) {
@@ -170,8 +189,30 @@ contract AccountController {
     Event(0x4368616e6765205265636f766572792063616c6c65642e);
   }
 
-  function changeSigner(address _newSigner) onlyRecovery {
-    signer = _newSigner;
+  function changeSigner(bytes32 _r, bytes32 _s, bytes32 _pl) onlyRecovery(_r, _s) {
+    uint32 nonce;
+    address newSigner;
+    bytes memory data = new bytes(68);
+    address oldSigner = signer;
+
+    assembly {
+      nonce := calldataload(48)
+      newSigner := calldataload(68)
+      // bytes4(sha3("handleRecovery(address,address)"))
+      mstore(add(data, 32), 0x5583b69300000000000000000000000000000000000000000000000000000000)
+      mstore(add(data, 36), oldSigner)
+      mstore(add(data, 68), newSigner)
+    }
+
+    if (nonce != lastNonce + 1) {
+      // Invalid nonce
+      Error(0x4e6f6e636520636f6e666c6963742e);
+      return;
+    }
+    lastNonce = nonce;
+
+    AccountProxy(proxy).forward(factory, data);
+    signer = newSigner;
     // Account signer changed.
     Event(0x4163636f756e74207369676e6572206368616e6765642e);
   }

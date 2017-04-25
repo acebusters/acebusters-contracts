@@ -7,6 +7,8 @@ contract("AccountController", (accounts) => {
 
   var signerAddr1 = '0xf3beac30c498d9e26865f34fcaa57dbb935b0d74';
   var signerPriv1 = '278a5de700e29faae8e40e366ec5012b5ec63d36ec77e8a2417154cc1d25383f';
+  const RECOVERY_ADDR = '0x82e8c6cf42c8d1ff9594b17a3f50e94a12cc860f';
+  const RECOVERY_PRIV = '0x94890218f2b0d04296f30aeafd13655eba4c5bbf1770273276fee52cbe3f2cb4';
   var token, proxy;
 
   var wait = (seconds) => new Promise((resolve) => setTimeout(() => resolve(), seconds * 1000));
@@ -153,16 +155,18 @@ contract("AccountController", (accounts) => {
     var unknown = accounts[3];
     AccountProxy.new().then((contract) => {
       proxy = contract;
-      return AccountController.new(proxy.address, signer, accounts[0], 0);
+      return AccountController.new(proxy.address, signer, RECOVERY_ADDR, 0);
     }).then((contract) => {
       controller = contract;
       // try to change signer address from signer address
-      return controller.changeSigner(newSigner, {from: unknown});
+      const recoveryReceipt = new Receipt(controller.address).recover(1, newSigner).sign(signerPriv1);
+      return controller.changeSigner(...Receipt.parseToParams(recoveryReceipt));
     }).then(() => {
       return controller.signer.call();
     }).then((newSignerAddr) => {
       assert.equal(newSignerAddr, signer, "Only recovery can call changeSignerAddr.");
-      return controller.changeSigner(newSigner);
+      const recoveryReceipt = new Receipt(controller.address).recover(1, newSigner).sign(RECOVERY_PRIV);
+      return controller.changeSigner(...Receipt.parseToParams(recoveryReceipt));
     }).then(() => {
       return controller.signer.call();
     }).then((newSignerAddr) => {
