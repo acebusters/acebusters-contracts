@@ -259,7 +259,7 @@ contract Table {
             throw;
         }
         if (seat.amount > 0) {
-            if (!token.transfer(_sender, seats[pos].amount))
+            if (!token.transfer(seat.senderAddr, seat.amount))
                 throw;
         }
         Leave(seat.signerAddr);
