@@ -3,11 +3,14 @@ var AccountController = artifacts.require('../contracts/AccountController.sol');
 var AccountFactory = artifacts.require('../contracts/AccountFactory.sol');
 
 contract("AccountFactory", (accounts) => {
-  var factory;
-  var controller;
-  var proxy;
-  var signer = accounts[1];
-  var recovery = accounts[2];
+  let factory;
+  let controller;
+  let proxy;
+  const signer = accounts[1];
+  const recovery = accounts[2];
+  const RECOVERY_ADDR = '0x82e8c6cf42c8d1ff9594b17a3f50e94a12cc860f';
+  const RECOVERY_PRIV = '0x94890218f2b0d04296f30aeafd13655eba4c5bbf1770273276fee52cbe3f2cb4';
+  const P_EMPTY = '0x0000000000000000000000000000000000000000';
 
   it("Correctly creates proxy, and controller", (done) => {
     var newController;
@@ -59,5 +62,28 @@ contract("AccountFactory", (accounts) => {
       });
       factory.create(signer, recovery, 0);
     });
+  });
+
+ it("correctly recovers account", (done) => {
+    let factory;
+    let controllerAddr;
+    const newSigner = accounts[3];
+    AccountFactory.new().then((contract) => {
+      factory = contract;
+      return factory.create(signer, RECOVERY_ADDR, 0);
+    }).then((txHash) => {
+      return factory.getAccount.call(signer);
+    }).then((entry) => {
+      controllerAddr = entry[1];
+      const controller = AccountController.at(controllerAddr);
+
+      const recoveryReceipt = new Receipt(controllerAddr).recover(1, newSigner).sign(RECOVERY_PRIV);
+      return controller.changeSigner(...Receipt.parseToParams(recoveryReceipt));
+    }).then((txHash) => {
+      return factory.getAccount.call(newSigner);
+    }).then((entry) => {
+      assert.equal(entry[1], controllerAddr, "Recovery not set in factory.");
+      done();
+    }).catch(done);
   });
 });
