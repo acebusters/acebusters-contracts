@@ -1,4 +1,4 @@
-pragma solidity ^0.4.7;
+pragma solidity ^0.4.8;
 
 import "./Token.sol";
 
@@ -18,7 +18,7 @@ contract Table {
     uint96 public smallBlind;
     Token public token;
     
-    bool public active;
+    bool public active = true;
     
     struct Hand {
         //in
