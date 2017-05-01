@@ -147,7 +147,7 @@ contract AccountController {
   }
 
   function sendTx(address _destination, uint _value) onlySigner {
-    AccountProxy(proxy).send(_destination, _value);
+    AccountProxy(proxy).forwardEth(_destination, _value);
   }
 
   function signControllerChange(address _newController) onlySigner {
