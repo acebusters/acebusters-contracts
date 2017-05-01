@@ -29,7 +29,8 @@ contract("AccountProxy", (accounts) => {
     await web3.eth.transactionMined(txHash);
     // check 1 ether was sold to token contract
     const bal = await token.balanceOf.call(proxy.address);
-    assert.equal(bal.toNumber(), amount/1000, 'forward failed.');
+    // should hold tokens purchased at ceiling price, here 1000
+    assert.equal(bal.toNumber(), amount / 1000, 'forward failed.');
   });
 
   it("Receives transaction", (done) => {
