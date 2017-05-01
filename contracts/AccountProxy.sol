@@ -7,7 +7,7 @@ contract AccountProxy is Owned {
   event Received (address indexed sender, uint value);
 
   // Address to which any funds sent to this contract will be forwarded
-  address tokenAddress;
+  address public tokenAddress;
 
   /**
    * Default function; Gets called when Ether is deposited,
@@ -15,7 +15,9 @@ contract AccountProxy is Owned {
    */
   function() payable {
     if (tokenAddress != 0) {
-      if (!tokenAddress.send(msg.value)) {
+      // danger! forwards all remaining gas and opens up the ability for
+      // the recipient to perform more expensive actions 
+      if (!tokenAddress.call.value(msg.value)()) {
         throw;
       }
     } else {
@@ -25,7 +27,7 @@ contract AccountProxy is Owned {
     }
   }
 
-  function send(address _destination, uint _value) onlyOwner {
+  function forwardEth(address _destination, uint _value) onlyOwner {
     // throw if destination not valid
     if (_destination == 0) {
         throw;
