@@ -6,10 +6,17 @@
     "acebusters"
   ],
   "author": "acebusters",
+  "devDependencies": {
+    "babel-preset-es2015": "^6.18.0",
+    "babel-preset-stage-2": "^6.18.0",
+    "babel-preset-stage-3": "^6.17.0",
+    "babel-register": "^6.23.0",
+    "babel-polyfill": "^6.23.0"
+  },
   "dependencies": {
     "babel-runtime": "^6.23.0",
-    "ethereumjs-util": "^5.1.1",
-    "poker-helper": "^0.3.15",
+    "ethereumjs-util": "^4.5.0",
+    "poker-helper": "/Users/johann/dev/ab-poker-helper",
     "utf8": "^2.1.2"
   }
 }

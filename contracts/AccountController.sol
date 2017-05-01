@@ -106,17 +106,25 @@ contract AccountController {
     factory = msg.sender;
   }
 
-  function forward(bytes32 _nonceAndAddr, bytes _data, bytes32 _r, bytes32 _s, uint8 _v) {
-    // 1. parse data
-    // expected _nonceAndAddr: <12bytes nonce><20bytes destination>
+  function forward(bytes32 _r, bytes32 _s, bytes32 _pl, bytes _data) {
+    uint8 v;
+    uint56 target;
+    uint32 nonce;
     address destination;
-    uint96 nonce = uint96(_nonceAndAddr >> 160);
+
     assembly {
-      // set destination
-      destination := _nonceAndAddr
+        v := calldataload(37)
+        target := calldataload(44)
+        nonce := calldataload(48)
+        destination := calldataload(68)
     }
 
     // 2. check permission
+    if (target != uint56(address(this))) {
+      // Access denied.
+      Error(0x4163636573732064656e6965642e);
+      return;
+    }
     if (nonce != lastNonce + 1) {
       // Invalid nonce
       Error(0x4e6f6e636520636f6e666c6963742e);
@@ -124,7 +132,7 @@ contract AccountController {
     }
     lastNonce = nonce;
     // check signer
-    if (ecrecover(sha3(_nonceAndAddr, _data), _v, _r, _s) != signer) {
+    if (ecrecover(sha3(uint8(0), target, nonce, destination, _data), v, _r, _s) != signer) {
       // Access denied.
       Error(0x4163636573732064656e6965642e);
       return;

@@ -1,244 +1,147 @@
-var AccountProxy = artifacts.require('../contracts/AccountProxy.sol');
-var AccountController = artifacts.require('../contracts/AccountController.sol');
-var Token = artifacts.require('../contracts/Token.sol');
-require('./helpers.js')()
+import { Receipt } from 'poker-helper';
+const AccountProxy = artifacts.require('../contracts/AccountProxy.sol');
+const AccountController = artifacts.require('../contracts/AccountController.sol');
+const Token = artifacts.require('../contracts/Token.sol');
 
 contract("AccountController", (accounts) => {
 
-  var signerAddr1 = '0xf3beac30c498d9e26865f34fcaa57dbb935b0d74';
-  var signerPriv1 = '278a5de700e29faae8e40e366ec5012b5ec63d36ec77e8a2417154cc1d25383f';
+  const SIGNER_ADDR = '0xf3beac30c498d9e26865f34fcaa57dbb935b0d74';
+  const SIGNER_PRIV = '0x278a5de700e29faae8e40e366ec5012b5ec63d36ec77e8a2417154cc1d25383f';
   const RECOVERY_ADDR = '0x82e8c6cf42c8d1ff9594b17a3f50e94a12cc860f';
   const RECOVERY_PRIV = '0x94890218f2b0d04296f30aeafd13655eba4c5bbf1770273276fee52cbe3f2cb4';
-  var token, proxy;
 
-  var wait = (seconds) => new Promise((resolve) => setTimeout(() => resolve(), seconds * 1000));
+  let wait = (seconds) => new Promise((resolve) => setTimeout(() => resolve(), seconds * 1000));
 
-  it("Correctly deploys contract", (done) => {
-    var controller;
-    var signer = accounts[0];
-    var recovery = accounts[1];
-    AccountProxy.new().then((contract) => {
-      proxy = contract;
-      return Token.new();
-    }).then((contract) => {
-      token = contract;
-      return AccountController.new(proxy.address, signer, recovery, 0);
-    }).then((contract) => {
-      controller = contract;
-      return controller.proxy.call();
-    }).then((proxyAddr) => {
-      assert.equal(proxyAddr, proxy.address);
-      return controller.signer.call();
-    }).then((signerAddr) => {
-      assert.equal(signerAddr, signer);
-      return controller.recovery.call();
-    }).then((recoveryAddr) => {
-      assert.equal(recoveryAddr, recovery);
-      done();
-    }).catch(done);
+  it("Correctly deploys contract", async () => {
+    const signer = accounts[0];
+    const recovery = accounts[1];
+    const proxy = await AccountProxy.new();
+    const token = await Token.new();
+    const controller = await AccountController.new(proxy.address, signer, recovery, 0);
+    const proxyAddr = await controller.proxy.call();
+    assert.equal(proxyAddr, proxy.address);
+    const signerAddr = await controller.signer.call();
+    assert.equal(signerAddr, signer);
+    const recoveryAddr = await controller.recovery.call();
+    assert.equal(recoveryAddr, recovery);
   });
 
-  it("Only sends transactions from correct user", (done) => {
-    var controller;
+  it("Only sends transactions from correct user", async () => {
     var signer = accounts[1];
     var unknown = accounts[2];
     // Transfer ownership of proxy to the controller contract.
     var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
-    AccountProxy.new().then((contract) => {
-      proxy = contract;
-      return Token.new();
-    }).then((contract) => {
-      token = contract;
-      return AccountController.new(proxy.address, signer, accounts[0], 0);
-    }).then((contract) => {
-      controller = contract;
-      return proxy.transfer(controller.address);
-    }).then(() => {
-      // issue 2000 in token through proxy
-      return controller.forwardTx(token.address, '0x' + data, {from: signer});
-    }).then(() => {
-      // Verify that the proxy address is logged as the sender
-      return token.balanceOf.call(proxy.address);
-    }).then((bal) => {
-      assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
-
-      // issue 2000 in token through proxy if not authorized
-      return controller.forwardTx(token.address, '0x' + data, {from: unknown});
-    }).then(() => {
-      // Verify that transaction did not take effect
-      return token.balanceOf.call(proxy.address);
-    }).then((bal) => {
-      assert.equal(bal.toNumber(), 2000, "unknow sender should not be able to proxy transaction");
-      done();
-    }).catch(done);
+    const proxy = await AccountProxy.new();
+    const token = await Token.new();
+    const controller = await AccountController.new(proxy.address, signer, accounts[0], 0);
+    await proxy.transfer(controller.address);
+    // issue 2000 in token through proxy
+    await controller.forwardTx(token.address, '0x' + data, {from: signer});
+    // Verify that the proxy address is logged as the sender
+    let bal = await token.balanceOf.call(proxy.address);
+    assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
+    // issue 2000 in token through proxy if not authorized
+    await controller.forwardTx(token.address, '0x' + data, {from: unknown});
+    // Verify that transaction did not take effect
+    bal = await token.balanceOf.call(proxy.address);
+    assert.equal(bal.toNumber(), 2000, "unknow sender should not be able to proxy transaction");
   });
 
-  it("sends transactions by receipt", (done) => {
+  it("sends transactions by receipt", async () => {
     // create proxy and controller
-    var controller;
-    var proxyContract;
-    AccountProxy.new().then((contract) => {
-      proxyContract = contract;
-      return AccountController.new(proxyContract.address, signerAddr1, accounts[0], 0);
-    }).then((contract) => {
-      controller = contract;
-      return proxyContract.transfer(controller.address);
-
+    const proxy = await AccountProxy.new();
+    const token = await Token.new();
+    const controller = await AccountController.new(proxy.address, SIGNER_ADDR, accounts[0], 0);
+    await proxy.transfer(controller.address);
     // construct a receipt, sign and send
-    }).then(() => {
-      // issue 2000 in token through proxy
-      var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
-      var nonceAndAddr = '000000000000000000000001'+token.address.replace('0x', '');
-      var sig = sign(signerPriv1, nonceAndAddr + data);
-      return controller.forward('0x' + nonceAndAddr, '0x' + data, sig.r, sig.s, sig.v);
-
+    // issue 2000 in token through proxy
+    const data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
+    const forwardReceipt = new Receipt(controller.address).forward(1, token.address, data).sign(SIGNER_PRIV);
+    await controller.forward(...Receipt.parseToParams(forwardReceipt));
     // verify that receipt has been executed
-    }).then(() => {
-      // Verify that the proxy address is logged as the sender
-      return token.balanceOf.call(proxyContract.address);
-    }).then((bal) => {
-      assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
-      done();
-    }).catch(done);
+    // Verify that the proxy address is logged as the sender
+    const bal = await token.balanceOf.call(proxy.address);
+    assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
   });
 
-  it("not prevent submitting wrong nonce", (done) => {
+  it("should prevent submitting wrong nonce", async () => {
     // create proxy and controller
-    var controller;
-    var proxyContract;
-    AccountProxy.new().then((contract) => {
-      proxyContract = contract;
-      return Token.new();
-    }).then((contract) => {
-      token = contract;
-      return AccountController.new(proxyContract.address, signerAddr1, accounts[0], 0);
-    }).then((contract) => {
-      controller = contract;
-      return proxyContract.transfer(controller.address);
-
+    const proxy = await AccountProxy.new();
+    const token = await Token.new();
+    const controller = await AccountController.new(proxy.address, SIGNER_ADDR, accounts[0], 0);
+    await proxy.transfer(controller.address);
     // construct a receipt, sign and send
-    }).then(() => {
-      // issue 2000 in token through proxy
-      var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
-      var nonceAndAddr = '000000000000000000000001'+token.address.replace('0x', '');
-      var sig = sign(signerPriv1, nonceAndAddr + data);
-      return controller.forward('0x' + nonceAndAddr, '0x' + data, sig.r, sig.s, sig.v);
-
+    // issue 2000 in token through proxy
+    const data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
+    const forwardReceipt = new Receipt(controller.address).forward(1, token.address, data).sign(SIGNER_PRIV);
+    await controller.forward(...Receipt.parseToParams(forwardReceipt));
     // verify that receipt has been executed
-    }).then(() => {
-      // Verify that the proxy address is logged as the sender
-      return token.balanceOf.call(proxyContract.address);
-    }).then((bal) => {
-      assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
-
-      // same operation as above with wrong nonce
-      var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
-      var nonceAndAddr = '000000000000000000000003'+token.address.replace('0x', '');
-      var sig = sign(signerPriv1, nonceAndAddr + data);
-      return controller.forward('0x' + nonceAndAddr, '0x' + data, sig.r, sig.s, sig.v);
-
+    // Verify that the proxy address is logged as the sender
+    let bal = await token.balanceOf.call(proxy.address);
+    assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
+    // same operation as above with wrong nonce
+    const data2 = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
+    const forwardReceipt2 = new Receipt(controller.address).forward(3, token.address, data2).sign(SIGNER_PRIV);
+    await controller.forward(...Receipt.parseToParams(forwardReceipt2));
     // verify that receipt has been executed
-    }).then(() => {
-      // Verify that the proxy address is logged as the sender
-      return token.balanceOf.call(proxyContract.address);
-    }).then((bal) => {
-      assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
-
-      done();
-    }).catch(done);
+    // Verify that the proxy address is logged as the sender
+    bal = await token.balanceOf.call(proxy.address);
+    assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
   });
 
-  it("Updates signerAddr as recovery", (done) => {
-    var controller;
-    var signer = accounts[1];
-    var newSigner = accounts[2];
-    var unknown = accounts[3];
-    AccountProxy.new().then((contract) => {
-      proxy = contract;
-      return AccountController.new(proxy.address, signer, RECOVERY_ADDR, 0);
-    }).then((contract) => {
-      controller = contract;
-      // try to change signer address from signer address
-      const recoveryReceipt = new Receipt(controller.address).recover(1, newSigner).sign(signerPriv1);
-      return controller.changeSigner(...Receipt.parseToParams(recoveryReceipt));
-    }).then(() => {
-      return controller.signer.call();
-    }).then((newSignerAddr) => {
-      assert.equal(newSignerAddr, signer, "Only recovery can call changeSignerAddr.");
-      const recoveryReceipt = new Receipt(controller.address).recover(1, newSigner).sign(RECOVERY_PRIV);
-      return controller.changeSigner(...Receipt.parseToParams(recoveryReceipt));
-    }).then(() => {
-      return controller.signer.call();
-    }).then((newSignerAddr) => {
-      assert.equal(newSignerAddr, newSigner, "Recovery should be able to change signer.");
-      done();
-    }).catch(done);
+  it("Updates signerAddr as recovery", async () => {
+    const signer = accounts[1];
+    const newSigner = accounts[2];
+    const unknown = accounts[3];
+    const proxy = await AccountProxy.new();
+    const controller = await AccountController.new(proxy.address, signer, RECOVERY_ADDR, 0);
+    // try to change signer address from signer address
+    const recoveryReceipt = new Receipt(controller.address).recover(1, newSigner).sign(SIGNER_PRIV);
+    await controller.changeSigner(...Receipt.parseToParams(recoveryReceipt));
+    let newSignerAddr = await controller.signer.call();
+    assert.equal(newSignerAddr, signer, "Only recovery can call changeSignerAddr.");
+    const recoveryReceipt2 = new Receipt(controller.address).recover(1, newSigner).sign(RECOVERY_PRIV);
+    await controller.changeSigner(...Receipt.parseToParams(recoveryReceipt2));
+    newSignerAddr = await controller.signer.call();
+    assert.equal(newSignerAddr, newSigner, "Recovery should be able to change signer.");
   });
 
-  it("Updates recoveryAddr as recovery", (done) => {
-    var controller;
-    var signer = accounts[1];
-    var newRecovery = accounts[2];
-    var unknown = accounts[3];
-    AccountController.new(proxy.address, signer, accounts[0], 0).then((contract) => {
-      controller = contract;
-      return controller.signRecoveryChange(newRecovery, {from: unknown});
-    }).then(() => {
-      return controller.newRecovery.call();
-    }).then((recoveryAddr) => {
-      assert.equal(recoveryAddr, 0x0, "Only recovery or signer can call changeRecoveryFromRecovery");
-
-      return controller.signRecoveryChange(newRecovery);
-    }).then(() => {
-      return controller.newRecovery.call();
-    }).then((newRecoveryAddr) => {
-      assert.equal(newRecoveryAddr, newRecovery, "Recovery should be able to change recovery.");
-      return wait(1);
-    }).then(() => {
-      return controller.changeRecovery({from: signer});
-    }).then(() => {
-      return controller.recovery.call();
-    }).then((recoveryAddr) => {
-      assert.equal(recoveryAddr, newRecovery, "ChangeRecovery Should affect recovery address after longTimeLock period");
-      done();
-    }).catch(done);
+  it("Updates recoveryAddr as recovery", async () => {
+    const signer = accounts[1];
+    const newRecovery = accounts[2];
+    const unknown = accounts[3];
+    const proxy = await AccountProxy.new();
+    const controller = await AccountController.new(proxy.address, signer, accounts[0], 0);
+    await controller.signRecoveryChange(newRecovery, {from: unknown});
+    let recoveryAddr = await controller.newRecovery.call();
+    assert.equal(recoveryAddr, 0x0, "Only recovery or signer can call changeRecoveryFromRecovery");
+    await controller.signRecoveryChange(newRecovery);
+    const newRecoveryAddr = await controller.newRecovery.call();
+    assert.equal(newRecoveryAddr, newRecovery, "Recovery should be able to change recovery.");
+    await wait(1);
+    await controller.changeRecovery({from: signer});
+    recoveryAddr = await controller.recovery.call();
+    assert.equal(recoveryAddr, newRecovery, "ChangeRecovery Should affect recovery address after longTimeLock period");
   });
 
-  it("Correctly performs transfer", (done) => {
-    var controller;
-    var proxyContract;
-    var signer = accounts[1];
-    var newController = accounts[2];
+  it("Correctly performs transfer", async () => {
+    const signer = accounts[1];
+    const newController = accounts[2];
 
-    AccountProxy.new().then((contract) => {
-      proxyContract = contract;
-      return AccountController.new(proxyContract.address, signer, accounts[0], 0);
-    }).then((contract) => {
-      controller = contract;
-      return proxyContract.transfer(controller.address);
-    }).then(() => {
-      return controller.signControllerChange(newController, {from: accounts[2]});
-    }).then(() => {
-      return controller.newController.call();
-    }).then((newControllerAddr) => {
-      assert.equal(newControllerAddr, 0x0, "Only user can set the newController");
-
-      return controller.signControllerChange(newController, {from: signer});
-    }).then(() => {
-      return controller.newController.call();
-    }).then((newControllerAddr) => {
-      assert.equal(newControllerAddr, newController, "New controller should now be cued up");
-      return proxyContract.owner.call();
-    }).then((proxyOwner) => {
-      assert.equal(proxyOwner, controller.address, "proxy should not change until changeController is called");
-      return wait(1);
-    }).then(() => {
-      return controller.changeController({from: signer});
-    }).then(() => {
-      return proxyContract.owner.call();
-    }).then((proxyOwner) => {
-      assert.equal(proxyOwner, newController, "ChangeController Should affect proxy ownership after longTimeLock period");
-      done();
-    }).catch(done);
+    const proxy = await AccountProxy.new();
+    const controller = await AccountController.new(proxy.address, signer, accounts[0], 0);
+    await proxy.transfer(controller.address);
+    await controller.signControllerChange(newController, {from: accounts[2]});
+    let newControllerAddr = await controller.newController.call();
+    assert.equal(newControllerAddr, 0x0, "Only user can set the newController");
+    await controller.signControllerChange(newController, {from: signer});
+    newControllerAddr = await controller.newController.call();
+    assert.equal(newControllerAddr, newController, "New controller should now be cued up");
+    let proxyOwner = await proxy.owner.call();
+    assert.equal(proxyOwner, controller.address, "proxy should not change until changeController is called");
+    await wait(1);
+    await controller.changeController({from: signer});
+    proxyOwner = await proxy.owner.call();
+    assert.equal(proxyOwner, newController, "ChangeController Should affect proxy ownership after longTimeLock period");
   });
 });

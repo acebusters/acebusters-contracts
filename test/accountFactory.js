@@ -1,11 +1,10 @@
+import { Receipt } from 'poker-helper';
 var AccountProxy = artifacts.require('../contracts/AccountProxy.sol');
 var AccountController = artifacts.require('../contracts/AccountController.sol');
 var AccountFactory = artifacts.require('../contracts/AccountFactory.sol');
 
 contract("AccountFactory", (accounts) => {
-  let factory;
-  let controller;
-  let proxy;
+
   const signer = accounts[1];
   const recovery = accounts[2];
   const RECOVERY_ADDR = '0x82e8c6cf42c8d1ff9594b17a3f50e94a12cc860f';
@@ -13,6 +12,9 @@ contract("AccountFactory", (accounts) => {
   const P_EMPTY = '0x0000000000000000000000000000000000000000';
 
   it("Correctly creates proxy, and controller", (done) => {
+    let factory;
+    let controller;
+    let proxy;
     var newController;
     var newProxy;
     AccountProxy.new().then((contract) => {
@@ -64,26 +66,16 @@ contract("AccountFactory", (accounts) => {
     });
   });
 
- it("correctly recovers account", (done) => {
-    let factory;
-    let controllerAddr;
+  it("correctly recovers account", async () => {
     const newSigner = accounts[3];
-    AccountFactory.new().then((contract) => {
-      factory = contract;
-      return factory.create(signer, RECOVERY_ADDR, 0);
-    }).then((txHash) => {
-      return factory.getAccount.call(signer);
-    }).then((entry) => {
-      controllerAddr = entry[1];
-      const controller = AccountController.at(controllerAddr);
-
-      const recoveryReceipt = new Receipt(controllerAddr).recover(1, newSigner).sign(RECOVERY_PRIV);
-      return controller.changeSigner(...Receipt.parseToParams(recoveryReceipt));
-    }).then((txHash) => {
-      return factory.getAccount.call(newSigner);
-    }).then((entry) => {
-      assert.equal(entry[1], controllerAddr, "Recovery not set in factory.");
-      done();
-    }).catch(done);
+    const factory = await AccountFactory.new();
+    await factory.create(signer, RECOVERY_ADDR, 0);
+    let entry = await factory.getAccount.call(signer);
+    let controllerAddr = entry[1];
+    const controller = AccountController.at(controllerAddr);
+    const recoveryReceipt = new Receipt(controllerAddr).recover(1, newSigner).sign(RECOVERY_PRIV);
+    await controller.changeSigner(...Receipt.parseToParams(recoveryReceipt));
+    entry = await factory.getAccount.call(newSigner);
+    assert.equal(entry[1], controllerAddr, "Recovery not set in factory.");
   });
 });

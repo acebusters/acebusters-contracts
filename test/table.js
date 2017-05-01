@@ -1,6 +1,27 @@
+import { Receipt } from 'poker-helper';
+import ethUtil from 'ethereumjs-util';
 var Token = artifacts.require('../contracts/Token.sol');
 var Table = artifacts.require('../contracts/Table.sol');
-require('./helpers.js')()
+
+const sign = (privStr, payloadStr) => {
+  const priv = new Buffer(privStr.replace('0x', ''), 'hex');
+  const payload = new Buffer(payloadStr.replace('0x', ''), 'hex');
+  const hash = ethUtil.sha3(payload);
+  const sig = ethUtil.ecsign(hash, priv);
+  return {
+    v: sig.v,
+    r: '0x' + sig.r.toString('hex'),
+    s: '0x' + sig.s.toString('hex'),
+  };
+};
+
+const signStr = (privStr, payloadStr) => {
+  const priv = new Buffer(privStr.replace('0x', ''), 'hex');
+  const payload = new Buffer(payloadStr.replace('0x', ''), 'hex');
+  const hash = ethUtil.sha3(payload);
+  const sig = ethUtil.ecsign(hash, priv);
+  return sig.r.toString('hex') + sig.s.toString('hex') + sig.v.toString(16);
+};
 
 contract('Table', function(accounts) {
 
