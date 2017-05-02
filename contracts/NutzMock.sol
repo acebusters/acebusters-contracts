@@ -17,11 +17,11 @@ contract NutzMock {
   }
 
   function NutzMock(address initialAccount, uint initialBalance) {
-      // initial price at 1000 Wei / token
-      ceiling = 1000;
-      // initial floor at 1000 Wei / token
-      floor = 1000;
-      balances[initialAccount] = initialBalance;
+    // initial price at 1000 Wei / token
+    ceiling = 1000;
+    // initial floor at 1000 Wei / token
+    floor = 1000;
+    balances[initialAccount] = initialBalance;
   }
     
   function () payable {
@@ -45,10 +45,10 @@ contract NutzMock {
    * Fix for the ERC20 short address attack  
    */
   modifier onlyPayloadSize(uint size) {
-     if(msg.data.length < size + 4) {
-       throw;
-     }
-     _;
+    if(msg.data.length < size + 4) {
+      throw;
+    }
+    _;
   }
 
   function transfer(address _to, uint _value) onlyPayloadSize(2 * 32) {

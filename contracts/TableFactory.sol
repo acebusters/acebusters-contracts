@@ -11,21 +11,21 @@ contract TableFactory is Owned {
   address[] public tables;
   
   function getTables() constant returns (address[]) {
-      uint activeCount = 0;
-      for (uint i = 0; i < tables.length; i++ ) {
-          if (Table(tables[i]).active()) {
-              activeCount++;
-          }
+    uint activeCount = 0;
+    for (uint i = 0; i < tables.length; i++ ) {
+      if (Table(tables[i]).active()) {
+        activeCount++;
       }
-      address[] memory rv = new address[](activeCount);
-      activeCount = 0;
-      for (i = 0; i < tables.length; i++ ) {
-          if (Table(tables[i]).active()) {
-              rv[activeCount] = tables[i];
-              activeCount++;
-          }
+    }
+    address[] memory rv = new address[](activeCount);
+    activeCount = 0;
+    for (i = 0; i < tables.length; i++ ) {
+      if (Table(tables[i]).active()) {
+        rv[activeCount] = tables[i];
+        activeCount++;
       }
-      return rv;
+    }
+    return rv;
   }
   
   function configure(address _token, address _oracle) onlyOwner {
@@ -38,10 +38,10 @@ contract TableFactory is Owned {
 
   function create(uint96 _smallBlind, uint _seats) onlyOwner returns (address) {
     if (_smallBlind == 0) {
-        throw;
+      throw;
     }
     if (_seats < 2 || _seats > 10) {
-        throw;
+      throw;
     }
     Table table = new Table(tokenAddress, oracleAddress, _smallBlind, _seats);
     uint pos = tables.length++;
