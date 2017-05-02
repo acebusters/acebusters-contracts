@@ -7,6 +7,7 @@ contract("AccountFactory", (accounts) => {
 
   const signer = accounts[1];
   const recovery = accounts[2];
+  const tokenAddr = accounts[4];
   const RECOVERY_ADDR = '0x82e8c6cf42c8d1ff9594b17a3f50e94a12cc860f';
   const RECOVERY_PRIV = '0x94890218f2b0d04296f30aeafd13655eba4c5bbf1770273276fee52cbe3f2cb4';
   const P_EMPTY = '0x0000000000000000000000000000000000000000';
@@ -62,14 +63,14 @@ contract("AccountFactory", (accounts) => {
           done();
         }).catch(done);
       });
-      factory.create(signer, recovery, 0);
+      factory.create(signer, recovery, tokenAddr, 0);
     });
   });
 
   it("correctly recovers account", async () => {
     const newSigner = accounts[3];
     const factory = await AccountFactory.new();
-    await factory.create(signer, RECOVERY_ADDR, 0);
+    await factory.create(signer, RECOVERY_ADDR, tokenAddr, 0);
     let entry = await factory.getAccount.call(signer);
     let controllerAddr = entry[1];
     const controller = AccountController.at(controllerAddr);
