@@ -2,7 +2,7 @@ pragma solidity ^0.4.8;
 
 import './SafeMath.sol';
 
-contract SafeTokenMock {
+contract NutzMock {
   using SafeMath for uint;
 
   mapping(address => uint) balances;
@@ -16,7 +16,7 @@ contract SafeTokenMock {
     return balances[_owner];
   }
 
-  function SafeTokenMock(address initialAccount, uint initialBalance) {
+  function NutzMock(address initialAccount, uint initialBalance) {
       // initial price at 1000 Wei / token
       ceiling = 1000;
       // initial floor at 1000 Wei / token

@@ -98,7 +98,7 @@ contract AccountController {
   }
 
   function AccountController(address _proxy, address _signer, address _recovery, uint96 _timeLock) {
-    version = 000100; // read as 0.1.0
+    version = 100; // read as 0.1.0
     proxy = _proxy;
     signer = _signer;
     recovery = _recovery;

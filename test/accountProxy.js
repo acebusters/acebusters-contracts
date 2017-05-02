@@ -1,4 +1,4 @@
-const SafeTokenMock = artifacts.require("../contracts/SafeTokenMock.sol");
+const NutzMock = artifacts.require("../contracts/NutzMock.sol");
 const AccountProxy = artifacts.require('../contracts/AccountProxy.sol');
 require('./helpers/transactionMined.js');
 const assertJump = require('./helpers/assertJump');
@@ -12,7 +12,7 @@ contract("AccountProxy", (accounts) => {
     var data = `0xa9059cbb000000000000000000000000${accounts[1].replace('0x', '')}00000000000000000000000000000000000000000000000000000000000003e8`;
     // Send forward request from the owner
     const proxy = await AccountProxy.new();
-    const token = await SafeTokenMock.new(proxy.address, 3000);
+    const token = await NutzMock.new(proxy.address, 3000);
     await proxy.forward(token.address, data, { from: accounts[0] });
     const bal = await token.balanceOf.call(proxy.address);
     assert.equal(bal.toNumber(), 2000);
@@ -21,7 +21,7 @@ contract("AccountProxy", (accounts) => {
   it("Basic forwarding test", async () => {
     // create proxy contract from my account
     const proxy = await AccountProxy.new();
-    const token = await SafeTokenMock.new(proxy.address, 0);
+    const token = await NutzMock.new(proxy.address, 0);
     // set token address
     await proxy.forwardEth(token.address, 0);
     // send 1 ether to proxy
@@ -56,7 +56,7 @@ contract("AccountProxy", (accounts) => {
     var data = `0xa9059cbb000000000000000000000000${accounts[1].replace('0x', '')}00000000000000000000000000000000000000000000000000000000000003e8`;
     // Send forward request from a non-owner
     const proxy = await AccountProxy.new();
-    const token = await SafeTokenMock.new(proxy.address, 3000);
+    const token = await NutzMock.new(proxy.address, 3000);
     await proxy.forward(token.address, '0x' + data, { from: accounts[1] });
     const bal = await token.balanceOf.call(proxy.address);
     assert.equal(bal.toNumber(), 3000);
@@ -64,7 +64,7 @@ contract("AccountProxy", (accounts) => {
 
   it("Should throw if function call fails", async () => {
     const proxy = await AccountProxy.new();
-    const token = await SafeTokenMock.new(accounts[0], 0);
+    const token = await NutzMock.new(accounts[0], 0);
     try {
       await proxy.forward(token.address, '0x50bff6bf', { from: accounts[0] });
     } catch (err) {
