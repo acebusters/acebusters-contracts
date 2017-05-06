@@ -13,7 +13,7 @@ contract("AccountProxy", (accounts) => {
     // Send forward request from the owner
     const proxy = await AccountProxy.new();
     const token = await NutzMock.new(proxy.address, 3000);
-    await proxy.forward(token.address, data, { from: accounts[0] });
+    await proxy.forward(token.address, 0, data, { from: accounts[0] });
     const bal = await token.balanceOf.call(proxy.address);
     assert.equal(bal.toNumber(), 2000);
   });
@@ -22,11 +22,11 @@ contract("AccountProxy", (accounts) => {
     // create proxy contract from my account
     const proxy = await AccountProxy.new();
     const token = await NutzMock.new(proxy.address, 0);
-    // set token address
-    await proxy.forwardEth(token.address, 0);
     // send 1 ether to proxy
     const txHash = web3.eth.sendTransaction({ from: accounts[2], to: proxy.address, value: amount });
     await web3.eth.transactionMined(txHash);
+    // forward 1 ether to token address
+    await proxy.forward(token.address, amount, 0);
     // check 1 ether was sold to token contract
     const bal = await token.balanceOf.call(proxy.address);
     // should hold tokens purchased at ceiling price, here 1000
@@ -57,7 +57,7 @@ contract("AccountProxy", (accounts) => {
     // Send forward request from a non-owner
     const proxy = await AccountProxy.new();
     const token = await NutzMock.new(proxy.address, 3000);
-    await proxy.forward(token.address, '0x' + data, { from: accounts[1] });
+    await proxy.forward(token.address, 0, '0x' + data, { from: accounts[1] });
     const bal = await token.balanceOf.call(proxy.address);
     assert.equal(bal.toNumber(), 3000);
   });
@@ -66,7 +66,7 @@ contract("AccountProxy", (accounts) => {
     const proxy = await AccountProxy.new();
     const token = await NutzMock.new(accounts[0], 0);
     try {
-      await proxy.forward(token.address, '0x50bff6bf', { from: accounts[0] });
+      await proxy.forward(token.address, 0, '0x50bff6bf', { from: accounts[0] });
     } catch (err) {
       assertJump(err);
     }

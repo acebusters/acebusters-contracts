@@ -26,27 +26,6 @@ contract("AccountController", (accounts) => {
     assert.equal(recoveryAddr, recovery);
   });
 
-  it("Only sends transactions from correct user", async () => {
-    var signer = accounts[1];
-    var unknown = accounts[2];
-    // Transfer ownership of proxy to the controller contract.
-    var data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
-    const proxy = await AccountProxy.new();
-    const token = await Token.new();
-    const controller = await AccountController.new(proxy.address, signer, accounts[0], 0);
-    await proxy.transfer(controller.address);
-    // issue 2000 in token through proxy
-    await controller.forwardTx(token.address, '0x' + data, {from: signer});
-    // Verify that the proxy address is logged as the sender
-    let bal = await token.balanceOf.call(proxy.address);
-    assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
-    // issue 2000 in token through proxy if not authorized
-    await controller.forwardTx(token.address, '0x' + data, {from: unknown});
-    // Verify that transaction did not take effect
-    bal = await token.balanceOf.call(proxy.address);
-    assert.equal(bal.toNumber(), 2000, "unknow sender should not be able to proxy transaction");
-  });
-
   it("sends transactions by receipt", async () => {
     // create proxy and controller
     const proxy = await AccountProxy.new();
@@ -56,7 +35,7 @@ contract("AccountController", (accounts) => {
     // construct a receipt, sign and send
     // issue 2000 in token through proxy
     const data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
-    const forwardReceipt = new Receipt(controller.address).forward(1, token.address, data).sign(SIGNER_PRIV);
+    const forwardReceipt = new Receipt(controller.address).forward(1, token.address, 0, data).sign(SIGNER_PRIV);
     await controller.forward(...Receipt.parseToParams(forwardReceipt));
     // verify that receipt has been executed
     // Verify that the proxy address is logged as the sender
@@ -73,7 +52,7 @@ contract("AccountController", (accounts) => {
     // construct a receipt, sign and send
     // issue 2000 in token through proxy
     const data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
-    const forwardReceipt = new Receipt(controller.address).forward(1, token.address, data).sign(SIGNER_PRIV);
+    const forwardReceipt = new Receipt(controller.address).forward(1, token.address, 0, data).sign(SIGNER_PRIV);
     await controller.forward(...Receipt.parseToParams(forwardReceipt));
     // verify that receipt has been executed
     // Verify that the proxy address is logged as the sender
@@ -81,7 +60,7 @@ contract("AccountController", (accounts) => {
     assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
     // same operation as above with wrong nonce
     const data2 = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
-    const forwardReceipt2 = new Receipt(controller.address).forward(3, token.address, data2).sign(SIGNER_PRIV);
+    const forwardReceipt2 = new Receipt(controller.address).forward(3, token.address, 0, data2).sign(SIGNER_PRIV);
     await controller.forward(...Receipt.parseToParams(forwardReceipt2));
     // verify that receipt has been executed
     // Verify that the proxy address is logged as the sender

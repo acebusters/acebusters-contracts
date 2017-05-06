@@ -15,15 +15,13 @@ contract AccountFactory {
   mapping(address => address) public signerToProxy;
   mapping(address => address) public signerToController;
 
-  function create(address _signer, address _recovery, address _token, uint _timeLock) {
+  function create(address _signer, address _recovery, uint _timeLock) {
     if (signerToProxy[_signer] != 0x0) {
       Error(409);
       return;
     }
     AccountProxy proxy = new AccountProxy();
     AccountController controller = new AccountController(proxy, _signer, _recovery, uint96(_timeLock));
-    // set the token contract address as forward address
-    proxy.forwardEth(_token, 0);
     proxy.transfer(controller);
 
     AccountCreated(_signer, proxy, controller, _recovery);

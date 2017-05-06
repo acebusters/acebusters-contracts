@@ -106,17 +106,17 @@ contract AccountController {
     factory = msg.sender;
   }
 
-  function forward(bytes32 _r, bytes32 _s, bytes32 _pl, bytes _data) {
+  function forward(bytes32 _r, bytes32 _s, bytes32 _pl, uint _amount, bytes _data) {
     uint8 v;
     uint56 target;
     uint32 nonce;
     address destination;
 
     assembly {
-      v := calldataload(37)
-      target := calldataload(44)
-      nonce := calldataload(48)
-      destination := calldataload(68)
+        v := calldataload(37)
+        target := calldataload(44)
+        nonce := calldataload(48)
+        destination := calldataload(68)
     }
 
     // 2. check permission
@@ -132,22 +132,14 @@ contract AccountController {
     }
     lastNonce = nonce;
     // check signer
-    if (ecrecover(sha3(uint8(0), target, nonce, destination, _data), v, _r, _s) != signer) {
+    if (ecrecover(sha3(uint8(0), target, nonce, destination, _amount, _data), v, _r, _s) != signer) {
       // Access denied.
       Error(0x4163636573732064656e6965642e);
       return;
     }
 
     // 3. do stuff
-    AccountProxy(proxy).forward(destination, _data);
-  }
-
-  function forwardTx(address _destination, bytes _payload) onlySigner {
-    AccountProxy(proxy).forward(_destination, _payload);
-  }
-
-  function sendTx(address _destination, uint _value) onlySigner {
-    AccountProxy(proxy).forwardEth(_destination, _value);
+    AccountProxy(proxy).forward(destination, _amount, _data);
   }
 
   function signControllerChange(address _newController) onlySigner {
@@ -219,7 +211,7 @@ contract AccountController {
     }
     lastNonce = nonce;
 
-    AccountProxy(proxy).forward(factory, data);
+    AccountProxy(proxy).forward(factory, 0, data);
     signer = newSigner;
     // Account signer changed.
     Event(0x4163636f756e74207369676e6572206368616e6765642e);
