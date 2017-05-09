@@ -43,9 +43,11 @@ contract TableFactory is Owned {
     if (_seats < 2 || _seats > 10) {
       throw;
     }
-    Table table = new Table(tokenAddress, oracleAddress, _smallBlind, _seats);
-    uint pos = tables.length++;
-    tables[pos] = address(table);
+    address table = new Table(tokenAddress, oracleAddress, _smallBlind, _seats);
+    if (Table(table).active()) {
+      uint pos = tables.length++;
+      tables[pos] = table;
+    }
   }
 
 }
