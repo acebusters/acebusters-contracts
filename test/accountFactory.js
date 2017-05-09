@@ -1,4 +1,5 @@
 import { Receipt } from 'poker-helper';
+import ethUtil from 'ethereumjs-util';
 var AccountProxy = artifacts.require('../contracts/AccountProxy.sol');
 var AccountController = artifacts.require('../contracts/AccountController.sol');
 var AccountFactory = artifacts.require('../contracts/AccountFactory.sol');
@@ -16,8 +17,9 @@ contract("AccountFactory", (accounts) => {
     let factory;
     let controller;
     let proxy;
-    var newController;
-    var newProxy;
+    let newController;
+    let newProxy;
+    let proxyAddr;
     AccountProxy.new().then((contract) => {
       proxy = contract;
       return AccountController.new();
@@ -29,7 +31,7 @@ contract("AccountFactory", (accounts) => {
       var event = factory.AccountCreated();
       event.watch((error, result) => {
         event.stopWatching();
-
+        assert.equal(proxyAddr, result.args.proxy, "Proxy address could not be predicted");
         assert.equal(web3.eth.getCode(result.args.proxy),
                      web3.eth.getCode(proxy.address),
                      "Created proxy should have correct code");
@@ -63,6 +65,10 @@ contract("AccountFactory", (accounts) => {
           done();
         }).catch(done);
       });
+      //web3.eth.getTransactionCount
+      return web3.eth.getTransactionCount(factory.address)
+    }).then(function(txCount) {
+      proxyAddr = ethUtil.bufferToHex(ethUtil.generateAddress(factory.address, txCount));
       factory.create(signer, recovery, tokenAddr, 0);
     });
   });

@@ -243,8 +243,12 @@ contract Table {
     if (pos == 0) {
       throw;
     }
-    //check the dough
+    // check the dough
     if (40 * smallBlind > _buyIn || (_buyIn + seats[pos].amount) > 400 * smallBlind) {
+      throw;
+    }
+    // check exit hand
+    if (seats[pos].exitHand > 0) {
       throw;
     }
     Token(token).transferFrom(msg.sender, this, _buyIn);
@@ -253,17 +257,17 @@ contract Table {
   }
 
   function join(uint96 _buyIn, address _signerAddr, uint _pos) {      
-    //check the dough
+    // check the dough
     if (40 * smallBlind > _buyIn || _buyIn > 400 * smallBlind) {
       throw;
     }
     
-    //no beggars
+    // no beggars
     if (Token(token).balanceOf(msg.sender) < _buyIn || Token(token).allowance(msg.sender, this) < _buyIn) {
       throw;
     }
     
-    //avoid duplicate players
+    // avoid duplicate players
     for (uint i = 1; i < seats.length; i++ )
       if (seats[i].senderAddr == msg.sender ||
         seats[i].signerAddr == msg.sender ||
