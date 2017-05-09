@@ -20,9 +20,9 @@ contract AccountFactory {
       Error(409);
       return;
     }
-    AccountProxy proxy = new AccountProxy();
-    AccountController controller = new AccountController(proxy, _signer, _recovery, uint96(_timeLock));
-    proxy.transfer(controller);
+    address proxy = new AccountProxy();
+    address controller = new AccountController(proxy, _signer, _recovery, uint96(_timeLock));
+    AccountProxy(proxy).transfer(controller);
 
     AccountCreated(_signer, proxy, controller, _recovery);
     signerToProxy[_signer] = proxy;
