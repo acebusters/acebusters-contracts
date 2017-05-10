@@ -37,7 +37,7 @@ contract TableFactory is Owned {
   }
 
   function create(uint96 _smallBlind, uint _seats) onlyOwner returns (address) {
-    if (_smallBlind == 0) {
+    if (_smallBlind == 0 || tokenAddress == 0x0 || oracleAddress == 0x0) {
       throw;
     }
     if (_seats < 2 || _seats > 10) {
