@@ -37,7 +37,7 @@ contract("AccountProxy", (accounts) => {
     let proxy;
     AccountProxy.new().then((contract) => {
       proxy = contract;
-      const event = proxy.Received();
+      const event = proxy.Deposit();
       // Encode the transaction to send to the proxy contract
       event.watch((error, result) => {
         event.stopWatching()
