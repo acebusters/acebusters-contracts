@@ -1,19 +1,8 @@
 import { Receipt } from 'poker-helper';
 import ethUtil from 'ethereumjs-util';
+import BigNumber from 'bignumber.js';
 var Token = artifacts.require('../contracts/Token.sol');
 var Table = artifacts.require('../contracts/Table.sol');
-
-const sign = (privStr, payloadStr) => {
-  const priv = new Buffer(privStr.replace('0x', ''), 'hex');
-  const payload = new Buffer(payloadStr.replace('0x', ''), 'hex');
-  const hash = ethUtil.sha3(payload);
-  const sig = ethUtil.ecsign(hash, priv);
-  return {
-    v: sig.v,
-    r: '0x' + sig.r.toString('hex'),
-    s: '0x' + sig.s.toString('hex'),
-  };
-};
 
 const signStr = (privStr, payloadStr) => {
   const priv = new Buffer(privStr.replace('0x', ''), 'hex');
@@ -55,51 +44,39 @@ contract('Table', function(accounts) {
     }).then(function(txHash){
       return token.transfer(accounts[1], 1000000, {from: accounts[0]});
     }).then(function(txHash){
-      return table.join(300000, P0_ADDR, 1, "test", {from: accounts[0]});
+      return table.join(300000, P0_ADDR, 0, "test", {from: accounts[0]});
     }).then(function(){
       return token.approve(table.address, 1000000, {from: accounts[1]});
     }).then(function(txHash){
-      return table.join(355360, P1_ADDR, 2, "test2", {from: accounts[1]});
+      return table.join(355360, P1_ADDR, 1, "test2", {from: accounts[1]});
     }).then(function(txHash){
-      return table.seats.call(1);
+      return table.seats.call(0);
     }).then(function(seat){
       assert.equal(seat[0], accounts[0], 'join failed.');
-      return table.seats.call(2);
+      return table.seats.call(1);
     }).then(function(seat){
       assert.equal(seat[0], accounts[1], 'join failed.');
       // create the leave receipt here.
       const leaveReceipt = new Receipt(table.address).leave(3, P1_ADDR).sign(ORACLE_PRIV);
       return table.leave(...Receipt.parseToParams(leaveReceipt));
     }).then(function(txHash){
-      return table.seats.call(2);
+      return table.seats.call(1);
     }).then(function(seat){
       // reading the exitHand from hand
       assert.equal(seat[3].toNumber(), 3, 'leave request failed.');
-      var settlement = '0x00000003'+table.address.replace('0x','').substring(8, 40) + '0000000000050000' + P0_ADDR.replace('0x','') + '0000000000040000' + P1_ADDR.replace('0x','') + '0000000000010000' + ORACLE.replace('0x', '');
-      var oSig = sign(ORACLE_PRIV, settlement);
-      var pSig = sign(P1_PRIV, settlement);
-      var sigs = '0x' + oSig.r.replace('0x','') + oSig.s.replace('0x','') + oSig.v.toString(16) + pSig.r.replace('0x','') + pSig.s.replace('0x','') + pSig.v.toString(16);
-      return table.settle(settlement, sigs);
+      var settleReceipt = new Receipt(table.address).settle(1, 3, [new BigNumber(90000000000000), new BigNumber(-100000000000000)]).sign(ORACLE_PRIV);
+      return table.settle(...Receipt.parseToParams(settleReceipt));
     }).then(function(txHash){
       return table.lastHandNetted.call();
-    }).then(function(exitHand){
-      assert.equal(exitHand.toNumber(), 3, 'settlement failed for last hand.');
+    }).then(function(lhn){
+      assert.equal(lhn.toNumber(), 3, 'settlement failed for last hand.');
+      return table.seats.call(0);
     }).then(function(seat){
-      return table.seats.call(1);
-    }).then(function(seat){
-      assert.equal(seat[1].toNumber(), 327680, 'settlement failed for seat pos 1.');
-      return table.seats.call(2);
-    }).then(function(seat){
-      assert.equal(seat[1].toNumber(), 262144, 'settlement failed for seat pos 2.');
-      return table.payout({from: accounts[1]});
-    }).then(function(txHash){
-      const rakeRequest = new Receipt(table.address).rakeRequest(3).sign(ORACLE_PRIV);
-      return table.withdrawRake(...Receipt.parseToParams(rakeRequest));
-    }).then(function(txHash){
+      assert.equal(seat[1].toNumber(), 390000, 'settlement failed for seat pos 2.');
       return token.balanceOf.call(ORACLE);
     }).then(function(oracleBal){
-      assert.equal(oracleBal.toNumber(), 65536, 'withdraw rake failed.');
-      return table.seats.call(2);
+      assert.equal(oracleBal.toNumber(), 10000, 'withdraw rake failed.');
+      return table.seats.call(1);
     }).then(function(seat){
       assert.equal(seat[1].toNumber(), 0, 'payout failed.');
     }).then(done).catch(done);
@@ -125,46 +102,43 @@ contract('Table', function(accounts) {
     }).then(function(txHash){
       return token.transfer(accounts[1], 1000000, {from: accounts[0]});
     }).then(function(txHash){
-      return table.join(300000, P0_ADDR, 1, "test", {from: accounts[0]});
+      return table.join(300000, P0_ADDR, 0, "test", {from: accounts[0]});
     }).then(function(){
       return token.approve(table.address, 1000000, {from: accounts[1]});
     }).then(function(txHash){
-      return table.join(355360, P1_ADDR, 2, "test2", {from: accounts[1]});
+      return table.join(355360, P1_ADDR, 1, "test2", {from: accounts[1]});
     }).then(function(txHash){
-      return table.seats.call(1);
+      return table.seats.call(0);
     }).then(function(seat){
       assert.equal(seat[0], accounts[0], 'join failed.');
-      return table.seats.call(2);
+      return table.seats.call(1);
     }).then(function(seat){
       assert.equal(seat[0], accounts[1], 'join failed.');
       // create the leave receipt here.
       const leaveReceipt = new Receipt(table.address).leave(3, P0_ADDR).sign(ORACLE_PRIV);
       return table.leave(...Receipt.parseToParams(leaveReceipt));
     }).then(function(txHash){
-      return table.seats.call(1);
+      return table.seats.call(0);
     }).then(function(seat){
       // reading the exitHand from hand
       assert.equal(seat[3].toNumber(), 3, 'leave request failed.');
       // prepare settlement
-      var settlement = '0x00000003'+table.address.replace('0x','').substring(8, 40) + '0000000000000000' + P0_ADDR.replace('0x','') + '0000000000090000' + P1_ADDR.replace('0x','') + '0000000000010000' + ORACLE.replace('0x', '');
-      var oSig = sign(ORACLE_PRIV, settlement);
-      var pSig = sign(P0_PRIV, settlement);
-      var sigs = '0x' + oSig.r.replace('0x','') + oSig.s.replace('0x','') + oSig.v.toString(16) + pSig.r.replace('0x','') + pSig.s.replace('0x','') + pSig.v.toString(16);
-      return table.settle(settlement, sigs);
+      var settleReceipt = new Receipt(table.address).settle(1, 3, [new BigNumber(-300000000000000), new BigNumber(250000000000000)]).sign(ORACLE_PRIV);
+      return table.settle(...Receipt.parseToParams(settleReceipt));
     }).then(function(txHash){
       return table.lastHandNetted.call();
     }).then(function(exitHand){
       assert.equal(exitHand.toNumber(), 3, 'settlement failed for last hand.');
     }).then(function(seat){
-      return table.seats.call(1);
+      return table.seats.call(0);
     }).then(function(seat){
       assert.equal(seat[1].toNumber(), 0, 'settlement failed for seat pos 1.');
-      return table.seats.call(2);
-    }).then(function(seat){
-      assert.equal(seat[1].toNumber(), 589824, 'settlement failed for seat pos 2.');
-      return table.payout({from: accounts[0]});
-    }).then(function(txHash){
       return table.seats.call(1);
+    }).then(function(seat){
+      assert.equal(seat[1].toNumber(), 605360, 'settlement failed for seat pos 2.');
+    //   return table.payout({from: accounts[0]});
+    // }).then(function(txHash){
+      return table.seats.call(0);
     }).then(function(seat){
       assert.equal(seat[0], P_EMPTY, 'payout failed.');
     }).then(done).catch(done);
@@ -231,11 +205,11 @@ contract('Table', function(accounts) {
     }).then(function(txHash){
       return token.transfer(accounts[1], 1000000, {from: accounts[0]});
     }).then(function(txHash){
-      return table.join(300000, P0_ADDR, 1, "test", {from: accounts[0]});
+      return table.join(300000, P0_ADDR, 0, "test", {from: accounts[0]});
     }).then(function(txHash){
       return token.approve(table.address, 400000, {from: accounts[1]});      
     }).then(function(txHash){
-      return table.join(355360, P1_ADDR, 2, "test2", {from: accounts[1]});
+      return table.join(355360, P1_ADDR, 1, "test2", {from: accounts[1]});
     }).then(function(txHash){
 
       return table.submitDists('0x' + dist40, '0x' + distSig40);
@@ -309,23 +283,17 @@ contract('Table', function(accounts) {
     }).then(function(seat){
 
       // 300000 buyin + 2000 (hand3) + 20000 (hand4) - 12000 = 310000
-      return table.seats.call(1);
+      return table.seats.call(0);
     }).then(function(seat){
       assert.equal(seat[1].toNumber(), 310000, 'settlement failed.');
       // rebuy with account 0
       return table.rebuy(300000, {from: accounts[0]});
     }).then(function(txHash){
-      return table.seats.call(1);
+      return table.seats.call(0);
     }).then(function(seat){
       assert.equal(seat[1].toNumber(), 610000, 'settlement failed.');
 
-      // 355360 buyin - 2000 (hand3) - 20000 (hand4) + 12000 = 345360
-      return table.seats.call(2);
-    }).then(function(seat){
-      assert.equal(seat[1].toNumber(), 345360, 'settlement failed.');
-      return table.payout({from: accounts[1]});
-    }).then(function(txHash){
-      return table.seats.call(2);
+      return table.seats.call(1);
     }).then(function(seat){
       assert.equal(seat[1].toNumber(), 0, 'payout failed.');
     }).then(done).catch(done);

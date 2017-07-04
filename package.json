@@ -15,8 +15,9 @@
   },
   "dependencies": {
     "babel-runtime": "^6.23.0",
+    "bignumber.js": "^4.0.1",
     "ethereumjs-util": "^4.5.0",
-    "poker-helper": "^0.3.16",
+    "poker-helper": "^0.3.19",
     "utf8": "^2.1.2"
   }
 }

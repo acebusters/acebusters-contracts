@@ -13,15 +13,10 @@ contract Table {
   event NettingRequest(uint hand);
   event Netted(uint hand);
   event Leave(address addr);
-  event Error(address addr, uint errorCode);
-  // 3 : No duplicate players
-  // 4 : Seat not available
-  // 5 : table closing
-  // 6 : table reopened
 
   address public oracle;
   uint96 public smallBlind;
-  address public token;
+  address public tokenAddr;
   
   bool public active = true;
   
@@ -35,7 +30,7 @@ contract Table {
 
   struct Seat {
     address senderAddr;
-    uint96 amount;
+    uint48 amount;
     address signerAddr;
     uint32 exitHand;
   }
@@ -43,38 +38,29 @@ contract Table {
   Hand[] public hands;
   Seat[] public seats;
 
-  mapping(address => uint) public seatMap; //both sender and receipt addr mapped here
   uint32 public lastHandNetted;
   
   uint32 public lastNettingRequestHandId;
   uint public lastNettingRequestTime;
   
   function Table(address _token, address _oracle, uint96 _smallBlind, uint _seats) {
-    token = _token;
+    tokenAddr = _token;
     oracle = _oracle;
     smallBlind = _smallBlind;
-    seats.length = _seats + 1;
-    // checked in settle() for seatMap[oracle] !== 0
-    seatMap[_oracle] = _seats + 1;
-    // lastHandNetted and player's exitHand are critical for security of funds.
-    // in payout() table checks (lastHandNetted >=  seat.exitHand) for grant.
-    // exitHand is provided by oracle with leave receipt. On join, exitHand is
-    // set to 0 though.
-    // if lhn == 0, players would be able to exit hand 0 without leave receipt.
-    // hence, table starts with lhn = 1, oracle's first handId is lhn + 1 = 2. 
+    seats.length = _seats;
     lastHandNetted = 1;
     lastNettingRequestHandId = 1;
     lastNettingRequestTime = now;
   }
   
   function getLineup() constant returns (uint, address[] addresses, uint[] amounts, uint96[] exitHands) {
-    addresses = new address[](seats.length - 1);
-    amounts = new uint[](seats.length - 1);
-    exitHands = new uint96[](seats.length - 1);
-    for (uint i = 1; i < seats.length; i++) {
-        addresses[i - 1] = seats[i].signerAddr;
-        amounts[i - 1] = seats[i].amount;
-        exitHands[i - 1] = seats[i].exitHand;
+    addresses = new address[](seats.length);
+    amounts = new uint[](seats.length);
+    exitHands = new uint96[](seats.length);
+    for (uint i = 0; i < seats.length; i++) {
+        addresses[i] = seats[i].signerAddr;
+        amounts[i] = seats[i].amount;
+        exitHands[i] = seats[i].exitHand;
     }
     return (lastHandNetted, addresses, amounts, exitHands);
   }
@@ -85,6 +71,18 @@ contract Table {
   
   function getOut(uint96 _handId, address _addr) constant returns (uint96, uint) {
     return (hands[_handId].outs[_addr], hands[_handId].claimCount);
+  }
+
+  function inLineup(address _addr) constant returns (bool) {
+    for (uint i = 0; i < seats.length; i++) {
+      if (seats[i].signerAddr == _addr || seats[i].senderAddr == _addr) {
+        return true;
+      }
+    }
+    if (_addr == oracle) {
+      return true;
+    }
+    return false;
   }
   
   function toggleActive(bytes _toggleReceipt) {
@@ -114,71 +112,20 @@ contract Table {
     }
 
     active = !active;
-    if (!active) {
-      Error(0x0, 5);
-    } else {
-      Error(0x0, 6);
-    }
   }
   
-  function withdrawRake(bytes32 _r, bytes32 _s, bytes32 _pl) {
-    uint8 v;
-    address dest;
-    uint32 handId;
+  // This function is called if all players agree to settle without dispute.
+  // A list of changes to all balances is signed by all active players and submited.
+  function settle(bytes _sigs, bytes32 _newBal1, bytes32 _newBal2) {
+    // TODO: keeping track of who has signed,
+    uint8 handsNetted = uint8(_newBal1 >> 232);
 
-    assembly {
-      v := calldataload(37)
-      dest := calldataload(57)
-      handId := calldataload(61)
-    }
-
-    if (dest != address(this)) {
+    // handId byte
+    if (uint8(_newBal1 >> 224) != uint8(lastHandNetted)) {
       throw;
     }
-    
-    if (lastHandNetted != handId) {
+    if (uint8(_newBal1 >> 240) != uint8(address(this))) {
       throw;
-    }
-    
-    if (ecrecover(sha3(uint8(0), dest, handId, uint56(0)), v, _r, _s) != oracle) {
-      throw;
-    }
-
-    uint playerBal = 0;
-    for (uint i = 1; i < seats.length; i++ ) {
-      playerBal += seats[i].amount;
-    }
-    uint totalBal = Token(token).balanceOf(address(this));
-    if (totalBal < playerBal) {
-      throw;
-    }
-    
-    if (totalBal - playerBal > 0) {
-      Token(token).transfer(oracle, totalBal - playerBal);
-    }
-  }
-  
-  // This function is called if players agree to settle without
-  // the payment channel. a list of new balances at specific signed by
-  // all players and the oracle expected here.
-  // TODO(ab): think about rebuy, total balances are probably no good idea
-  // relativ balances better to model rebuy?
-  function settle(bytes _newBalances, bytes _sigs) {
-    // keeping track of who has signed,
-    // we'll use the receipt signing key for this now.
-    uint32 handId;
-    uint128 dest;
-    address[] memory addr;
-    uint64[] memory amount;
-    assembly {
-      handId := mload(add(_newBalances, 4))
-      dest := mload(add(_newBalances, 20))
-    }
-    if (handId <= lastHandNetted) {
-      return;
-    }
-    if (dest != uint128(address(this))) {
-      return;
     }
 
     for (uint i = 0; i < _sigs.length / 65; i++) {
@@ -186,61 +133,38 @@ contract Table {
       bytes32 r;
       bytes32 s;
       assembly {
-        r := mload(add(_sigs, add(32, mul(i, 65))))
-        s := mload(add(_sigs, add(64, mul(i, 65))))
-        v := mload(add(_sigs, add(65, mul(i, 65))))
+        v := mload(add(_sigs, add(1, mul(i, 65))))
+        r := mload(add(_sigs, add(33, mul(i, 65))))
+        s := mload(add(_sigs, add(65, mul(i, 65))))
       }
-      if (seatMap[ecrecover(sha3(_newBalances), v, r, s)] == 0) {
+      if (!inLineup(ecrecover(sha3(_newBal1, _newBal2), v, r, s))) {
         throw;
       }
     }
-    
-    assembly {
-      //prepare loop
-      let i := 0
-      let len := div(sub(calldataload(68), 20),28)
-      //create addr array
-      addr := mload(0x40)
-      mstore(addr, 0x20)
-      addr := add(0x20, addr)
-      mstore(addr, len)
-      //create amount array
-      amount := add(addr, mul(len, 0x20))
-      mstore(amount, 0x20)
-      amount := add(0x20, amount)
-      mstore(amount, len)
-      mstore(0x40, add(amount, and(add(mul(add(len, 1), 0x20), 0x1f), not(0x1f))))
-      loop:
-        jumpi(end, eq(i, len))
-        {
-          let elem := mload(add(_newBalances, add(28, mul(i, 28))))
-          mstore(add(amount, add(32, mul(i, 0x20))), elem)
-          elem := mload(add(_newBalances, add(48, mul(i, 28))))
-          mstore(add(addr, add(32, mul(i, 0x20))), elem)
-          i := add(i, 1)
-        }
-        jump(loop)
-      end:
-    }
-    
-    //set new balances
-    for (i = 0; i < addr.length; i++) {
-      if (addr[i] != oracle) {
-        seats[seatMap[addr[i]]].amount = uint96(amount[i]);
+
+    uint sumOfSeatBalances = 0;
+    for (i = 0; i < seats.length; i++) {
+      int48 diff;
+      assembly {
+        diff := calldataload(add(14, mul(i, 6)))
       }
+      seats[i].amount = uint48(int48(seats[i].amount) + diff);
+      sumOfSeatBalances += seats[i].amount;
     }
-    lastHandNetted = handId;
-    Netted(handId);
+
+    lastHandNetted += handsNetted;
+    Netted(lastHandNetted);
+    _payout(sumOfSeatBalances);
   }
   
-  function rebuy(uint96 _buyIn) {
-    uint pos = 0;
-    for (uint i = 1; i < seats.length; i++ ) {
+  function rebuy(uint48 _buyIn) {
+    uint pos = 99;
+    for (uint i = 0; i < seats.length; i++ ) {
       if (seats[i].senderAddr == msg.sender) {
         pos = i;
       }
     }
-    if (pos == 0) {
+    if (pos == 99) {
       throw;
     }
     // check the dough
@@ -251,43 +175,40 @@ contract Table {
     if (seats[pos].exitHand > 0) {
       throw;
     }
-    Token(token).transferFrom(msg.sender, this, _buyIn);
+    Token(tokenAddr).transferFrom(msg.sender, this, _buyIn);
     seats[pos].amount += _buyIn;
     Join(msg.sender, _buyIn);
   }
 
-  function join(uint96 _buyIn, address _signerAddr, uint _pos) {      
+  function join(uint48 _buyIn, address _signerAddr, uint _pos) {      
     // check the dough
     if (40 * smallBlind > _buyIn || _buyIn > 400 * smallBlind) {
       throw;
     }
     
     // no beggars
-    if (Token(token).balanceOf(msg.sender) < _buyIn || Token(token).allowance(msg.sender, this) < _buyIn) {
+    if (Token(tokenAddr).balanceOf(msg.sender) < _buyIn || Token(tokenAddr).allowance(msg.sender, this) < _buyIn) {
       throw;
     }
     
     // avoid duplicate players
-    for (uint i = 1; i < seats.length; i++ )
+    for (uint i = 0; i < seats.length; i++ ) {
       if (seats[i].senderAddr == msg.sender ||
         seats[i].signerAddr == msg.sender ||
         seats[i].senderAddr == _signerAddr ||
         seats[i].signerAddr == _signerAddr) {
-          Error(msg.sender, 3);
-          return;
+          throw;
         }
+    }
     
     //seat player
-    if (_pos == 0 || seats[_pos].amount > 0 || seats[_pos].senderAddr != 0) {
-      Error(msg.sender, 4);
-      return;
+    if (_pos >=seats.length || seats[_pos].amount > 0 || seats[_pos].senderAddr != 0) {
+      throw;
     }
-    Token(token).transferFrom(msg.sender, this, _buyIn);
+    Token(tokenAddr).transferFrom(msg.sender, this, _buyIn);
     seats[_pos].senderAddr = msg.sender;
     seats[_pos].amount = _buyIn;
     seats[_pos].signerAddr = _signerAddr;
-    seatMap[msg.sender] = _pos;
-    seatMap[_signerAddr] = _pos;
     Join(msg.sender, _buyIn);
   }
   
@@ -311,7 +232,16 @@ contract Table {
       throw;
     }
 
-    seats[seatMap[signer]].exitHand = handId;
+    uint pos = 99;
+    for (uint i = 0; i < seats.length; i++) {
+      if (seats[i].signerAddr == signer || seats[i].senderAddr == signer) {
+        pos = i;
+      }
+    }
+    if (pos == 99) {
+      throw;
+    }
+    seats[pos].exitHand = handId;
     //create new netting request
     if (lastHandNetted < handId && lastNettingRequestHandId < handId) {
       NettingRequest(handId);
@@ -326,38 +256,37 @@ contract Table {
   
   function netHelp(uint _now) {
     if (_now  > lastNettingRequestTime + 60 * 10) {
-      for (uint i = lastHandNetted + 1; i < lastNettingRequestHandId; i++ ) {
-        for (uint j = 1; j < seats.length; j++) {
+      uint sumOfSeatBalances = 0;
+      for (uint j = 0; j < seats.length; j++) {
+        for (uint i = lastHandNetted + 1; i < lastNettingRequestHandId; i++ ) {
           int amount = int(seats[j].amount);
           amount += int(hands[i].outs[seats[j].signerAddr]) - int(hands[i].ins[seats[j].signerAddr]);
-          seats[j].amount = uint96(amount);
+          seats[j].amount = uint48(amount);
         }
+        sumOfSeatBalances += seats[j].amount;
       }
       lastHandNetted = lastNettingRequestHandId;
       Netted(lastHandNetted);
+      _payout(sumOfSeatBalances);
     }
   }
 
-  function payout() {
-    payoutFrom(msg.sender);
-  }
 
-  function payoutFrom(address _sender) {
-    uint pos = seatMap[_sender];
-    Seat seat = seats[pos];
-    if (lastHandNetted < seat.exitHand) {
-      throw;
+  function _payout(uint sumOfSeatBalances) internal {
+    var token = Token(tokenAddr);
+    uint totalBal = token.balanceOf(address(this));
+    token.transfer(oracle, totalBal - (sumOfSeatBalances));
+
+    for (uint i = 0; i < seats.length; i++) {
+      Seat seat = seats[i];
+      if (seat.exitHand > 0 && lastHandNetted >= seat.exitHand) {
+        if (seat.amount > 0) {
+          token.transfer(seat.senderAddr, seat.amount);
+        }
+        Leave(seat.signerAddr);
+        delete seats[i];
+      }
     }
-    if (seat.exitHand == 0) {
-      throw;
-    }
-    if (seat.amount > 0) {
-      Token(token).transfer(seat.senderAddr, seat.amount);
-    }
-    Leave(seat.signerAddr);
-    delete seatMap[seat.senderAddr];
-    delete seatMap[seat.signerAddr];
-    delete seats[pos];
   }
 
   function _storeDist(bytes _receipt) internal returns (uint) {
@@ -465,12 +394,15 @@ contract Table {
       }
       //todo: implement to check name
       address signerAddr = ecrecover(sha3(bytes4(name), handId, uint(amount)), v, r, s);
-      if (seatMap[signerAddr] == 0)
+      if (!inLineup(signerAddr)) {
         continue;
-      if (handId <= lastHandNetted || handId >= hands.length)
+      }
+      if (handId <= lastHandNetted || handId >= hands.length) {
         continue;
-      if (hands[handId].ins[signerAddr] >= amount)
+      }
+      if (hands[handId].ins[signerAddr] >= amount) {
         continue;
+      }
       hands[handId].ins[signerAddr] = amount;
       writeCount++;
     }
