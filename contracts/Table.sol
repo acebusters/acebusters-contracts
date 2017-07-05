@@ -1,13 +1,10 @@
-pragma solidity ^0.4.8;
+pragma solidity ^0.4.11;
 
-contract Token {
-  function transfer(address _to, uint256 _value);
-  function transferFrom(address _from, address _to, uint256 _value);
-  function balanceOf(address _holder) returns (uint);
-  function allowance(address _holder, address _spender) returns (uint);
-}
+import './ERC20Basic.sol';
+import './SafeMath.sol';
 
 contract Table {
+  using SafeMath for uint;
 
   event Join(address addr, uint256 amount);
   event NettingRequest(uint hand);
@@ -15,8 +12,9 @@ contract Table {
   event Leave(address addr);
 
   address public oracle;
-  uint96 public smallBlind;
+  uint48 jozSb;
   address public tokenAddr;
+  uint jozDecimals = 1000000000;
   
   bool public active = true;
   
@@ -43,14 +41,18 @@ contract Table {
   uint32 public lastNettingRequestHandId;
   uint public lastNettingRequestTime;
   
-  function Table(address _token, address _oracle, uint96 _smallBlind, uint _seats) {
+  function Table(address _token, address _oracle, uint _smallBlind, uint _seats) {
     tokenAddr = _token;
     oracle = _oracle;
-    smallBlind = _smallBlind;
+    jozSb = uint48(_smallBlind.div(1000000000));
     seats.length = _seats;
     lastHandNetted = 1;
     lastNettingRequestHandId = 1;
     lastNettingRequestTime = now;
+  }
+
+  function smallBlind() constant returns (uint) {
+    return jozDecimals.mul(uint256(jozSb));
   }
   
   function getLineup() constant returns (uint, address[] addresses, uint[] amounts, uint96[] exitHands) {
@@ -149,67 +151,59 @@ contract Table {
         diff := calldataload(add(14, mul(i, 6)))
       }
       seats[i].amount = uint48(int48(seats[i].amount) + diff);
-      sumOfSeatBalances += seats[i].amount;
+      sumOfSeatBalances += jozDecimals.mul(seats[i].amount);
     }
 
     lastHandNetted += handsNetted;
     Netted(lastHandNetted);
     _payout(sumOfSeatBalances);
   }
-  
-  function rebuy(uint48 _buyIn) {
-    uint pos = 99;
-    for (uint i = 0; i < seats.length; i++ ) {
-      if (seats[i].senderAddr == msg.sender) {
-        pos = i;
-      }
-    }
-    if (pos == 99) {
-      throw;
-    }
-    // check the dough
-    if (40 * smallBlind > _buyIn || (_buyIn + seats[pos].amount) > 400 * smallBlind) {
-      throw;
-    }
-    // check exit hand
-    if (seats[pos].exitHand > 0) {
-      throw;
-    }
-    Token(tokenAddr).transferFrom(msg.sender, this, _buyIn);
-    seats[pos].amount += _buyIn;
-    Join(msg.sender, _buyIn);
-  }
 
-  function join(uint48 _buyIn, address _signerAddr, uint _pos) {      
+  function tokenFallback(address _from, uint _value, bytes _data) {
     // check the dough
-    if (40 * smallBlind > _buyIn || _buyIn > 400 * smallBlind) {
+    uint256 smallBlind = jozDecimals.mul(uint256(jozSb));
+    if (40 * smallBlind > _value || _value > 400 * smallBlind) {
       throw;
     }
-    
-    // no beggars
-    if (Token(tokenAddr).balanceOf(msg.sender) < _buyIn || Token(tokenAddr).allowance(msg.sender, this) < _buyIn) {
-      throw;
+
+    uint8 pos;
+    address signerAddr;
+    assembly {
+      pos := mload(add(_data, 1))
+      signerAddr := mload(add(_data, 21))
     }
-    
-    // avoid duplicate players
+
+    bool rebuy = false;
+    // avoid player joining multiple times
     for (uint i = 0; i < seats.length; i++ ) {
-      if (seats[i].senderAddr == msg.sender ||
-        seats[i].signerAddr == msg.sender ||
-        seats[i].senderAddr == _signerAddr ||
-        seats[i].signerAddr == _signerAddr) {
+      if (seats[i].senderAddr == _from) {
+        if (pos != i) {
           throw;
         }
+        rebuy = true;
+      }
     }
-    
-    //seat player
-    if (_pos >=seats.length || seats[_pos].amount > 0 || seats[_pos].senderAddr != 0) {
-      throw;
+
+    if (rebuy) {
+      // check the dough
+      if (_value + seats[pos].amount > 400 * smallBlind) {
+        throw;
+      }
+      // check exit hand
+      if (seats[pos].exitHand > 0) {
+        throw;
+      }
+      seats[pos].amount += uint48(_value.div(jozDecimals));
+    } else {
+      if (pos >=seats.length || seats[pos].amount > 0 || seats[pos].senderAddr != 0) {
+        throw;
+      }
+      //seat player
+      seats[pos].senderAddr = _from;
+      seats[pos].amount = uint48(_value.div(jozDecimals));
+      seats[pos].signerAddr = signerAddr;
     }
-    Token(tokenAddr).transferFrom(msg.sender, this, _buyIn);
-    seats[_pos].senderAddr = msg.sender;
-    seats[_pos].amount = _buyIn;
-    seats[_pos].signerAddr = _signerAddr;
-    Join(msg.sender, _buyIn);
+    Join(_from, _value);
   }
   
   function leave(bytes32 _r, bytes32 _s, bytes32 _pl) {
@@ -273,9 +267,9 @@ contract Table {
 
 
   function _payout(uint sumOfSeatBalances) internal {
-    var token = Token(tokenAddr);
+    var token = ERC20Basic(tokenAddr);
     uint totalBal = token.balanceOf(address(this));
-    token.transfer(oracle, totalBal - (sumOfSeatBalances));
+    token.transfer(oracle, totalBal.sub(sumOfSeatBalances));
 
     for (uint i = 0; i < seats.length; i++) {
       Seat seat = seats[i];
@@ -283,7 +277,7 @@ contract Table {
         if (seat.amount > 0) {
           token.transfer(seat.senderAddr, seat.amount);
         }
-        Leave(seat.signerAddr);
+        Leave(seat.senderAddr);
         delete seats[i];
       }
     }

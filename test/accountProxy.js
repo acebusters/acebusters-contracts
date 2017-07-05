@@ -1,4 +1,4 @@
-const NutzMock = artifacts.require("../contracts/NutzMock.sol");
+const NutzMock = artifacts.require("../contracts/ERC223BasicToken.sol");
 const AccountProxy = artifacts.require('../contracts/AccountProxy.sol');
 require('./helpers/transactionMined.js');
 const assertJump = require('./helpers/assertJump');
@@ -12,16 +12,18 @@ contract("AccountProxy", (accounts) => {
     var data = `0xa9059cbb000000000000000000000000${accounts[1].replace('0x', '')}00000000000000000000000000000000000000000000000000000000000003e8`;
     // Send forward request from the owner
     const proxy = await AccountProxy.new();
-    const token = await NutzMock.new(proxy.address, 3000);
+    const token = await NutzMock.new();
+    await token.transfer(proxy.address, 100000);
     await proxy.forward(token.address, 0, data, { from: accounts[0] });
     const bal = await token.balanceOf.call(proxy.address);
-    assert.equal(bal.toNumber(), 2000);
+    assert.equal(bal.toNumber(), 99000);
   });
 
   it("Basic forwarding test", async () => {
     // create proxy contract from my account
     const proxy = await AccountProxy.new();
-    const token = await NutzMock.new(proxy.address, 0);
+    const token = await NutzMock.new();
+    await token.transfer(proxy.address, 100000);
     // send 1 ether to proxy
     const txHash = web3.eth.sendTransaction({ from: accounts[2], to: proxy.address, value: amount });
     await web3.eth.transactionMined(txHash);
@@ -29,8 +31,8 @@ contract("AccountProxy", (accounts) => {
     await proxy.forward(token.address, amount, 0);
     // check 1 ether was sold to token contract
     const bal = await token.balanceOf.call(proxy.address);
-    // should hold tokens purchased at ceiling price, here 1000
-    assert.equal(bal.toNumber(), amount / 1000, 'forward failed.');
+    // should hold tokens purchased at ceiling price, here 3000
+    assert.equal(bal.toNumber(), 333333333433333, 'forward failed.');
   });
 
   it("Receives transaction", (done) => {
@@ -56,8 +58,9 @@ contract("AccountProxy", (accounts) => {
     var data = `0xa9059cbb000000000000000000000000${accounts[1].replace('0x', '')}00000000000000000000000000000000000000000000000000000000000003e8`;
     // Send forward request from a non-owner
     const proxy = await AccountProxy.new();
-    const token = await NutzMock.new(proxy.address, 3000);
-    await proxy.forward(token.address, 0, '0x' + data, { from: accounts[1] });
+    const token = await NutzMock.new();
+    await token.transfer(proxy.address, 3000);
+    await proxy.forward(token.address, 0, data, { from: accounts[1] });
     const bal = await token.balanceOf.call(proxy.address);
     assert.equal(bal.toNumber(), 3000);
   });

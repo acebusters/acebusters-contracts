@@ -1,7 +1,7 @@
 import { Receipt } from 'poker-helper';
 const AccountProxy = artifacts.require('../contracts/AccountProxy.sol');
 const AccountController = artifacts.require('../contracts/AccountController.sol');
-const Token = artifacts.require('../contracts/Token.sol');
+const Token = artifacts.require('../contracts/ERC223BasicToken.sol');
 
 contract("AccountController", (accounts) => {
 
@@ -30,42 +30,42 @@ contract("AccountController", (accounts) => {
     // create proxy and controller
     const proxy = await AccountProxy.new();
     const token = await Token.new();
+    await token.transfer(proxy.address, 100000);
     const controller = await AccountController.new(proxy.address, SIGNER_ADDR, accounts[0], 0);
     await proxy.transfer(controller.address);
     // construct a receipt, sign and send
-    // issue 2000 in token through proxy
-    const data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
+    // transfer 1000 in token through proxy
+    const data = `0xa9059cbb000000000000000000000000${accounts[1].replace('0x', '')}00000000000000000000000000000000000000000000000000000000000003e8`;
     const forwardReceipt = new Receipt(controller.address).forward(1, token.address, 0, data).sign(SIGNER_PRIV);
     await controller.forward(...Receipt.parseToParams(forwardReceipt));
     // verify that receipt has been executed
-    // Verify that the proxy address is logged as the sender
-    const bal = await token.balanceOf.call(proxy.address);
-    assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
+    const bal = await token.balanceOf.call(accounts[1]);
+    assert.equal(bal.toNumber(), 1000, "should be able to proxy transaction");
   });
 
   it("should prevent submitting wrong nonce", async () => {
     // create proxy and controller
     const proxy = await AccountProxy.new();
     const token = await Token.new();
+    await token.transfer(proxy.address, 100000);
     const controller = await AccountController.new(proxy.address, SIGNER_ADDR, accounts[0], 0);
     await proxy.transfer(controller.address);
     // construct a receipt, sign and send
-    // issue 2000 in token through proxy
-    const data = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
+    // transfer 1000 in token through proxy
+    const data = `0xa9059cbb000000000000000000000000${accounts[1].replace('0x', '')}00000000000000000000000000000000000000000000000000000000000003e8`;
     const forwardReceipt = new Receipt(controller.address).forward(1, token.address, 0, data).sign(SIGNER_PRIV);
     await controller.forward(...Receipt.parseToParams(forwardReceipt));
     // verify that receipt has been executed
     // Verify that the proxy address is logged as the sender
     let bal = await token.balanceOf.call(proxy.address);
-    assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
+    assert.equal(bal.toNumber(), 99000, "should be able to proxy transaction");
     // same operation as above with wrong nonce
-    const data2 = 'cc872b6600000000000000000000000000000000000000000000000000000000000007d0';
-    const forwardReceipt2 = new Receipt(controller.address).forward(3, token.address, 0, data2).sign(SIGNER_PRIV);
+    const forwardReceipt2 = new Receipt(controller.address).forward(3, token.address, 0, data).sign(SIGNER_PRIV);
     await controller.forward(...Receipt.parseToParams(forwardReceipt2));
     // verify that receipt has been executed
     // Verify that the proxy address is logged as the sender
     bal = await token.balanceOf.call(proxy.address);
-    assert.equal(bal.toNumber(), 2000, "should be able to proxy transaction");
+    assert.equal(bal.toNumber(), 99000, "should be able to proxy transaction");
   });
 
   it("Updates signerAddr as recovery", async () => {

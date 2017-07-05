@@ -1,4 +1,4 @@
-pragma solidity ^0.4.8;
+pragma solidity ^0.4.11;
 
 import "./Owned.sol";
 
@@ -12,6 +12,9 @@ contract AccountProxy is Owned {
    */
   function() payable {
     Deposit(msg.sender, msg.value);
+  }
+
+  function tokenFallback(address _from, uint _value, bytes _data) {
   }
   
   function forward(address _destination, uint _value, bytes _data) onlyOwner {
