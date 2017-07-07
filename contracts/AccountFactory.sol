@@ -1,68 +1,46 @@
 pragma solidity ^0.4.11;
 
-import "./AccountController.sol";
 import "./AccountProxy.sol";
 
 contract AccountFactory {
 
-  event AccountCreated(address indexed signer, address proxy, address controller, address recovery);
+  event AccountCreated(address indexed signer, address proxy);
   event AccountRecovered(address indexed newSigner, address proxy, address oldSigner);
-  event Error(uint code);
-  // 401 unauthorized
-  // 404 not found
-  // 409 conflict
 
-  mapping(address => address) public signerToProxy;
-  mapping(address => address) public signerToController;
+  mapping(address => address) signerToProxy;
+  mapping(address => address) proxyToSigner;
+  
+  function getAccount(address _signer) constant returns(address, address, bool) {
+      address proxyAddr = signerToProxy[_signer];
+      var proxy = AccountProxy(proxyAddr);
+      return (proxyAddr, proxy.getOwner(), proxy.isLocked());
+  }
 
-  function create(address _signer, address _recovery, uint _timeLock) {
+  function getSigner(address _proxy) constant returns(address) {
+      return proxyToSigner[_proxy];
+  }
+
+  function create(address _signer, address _lockAddr) {
     if (signerToProxy[_signer] != 0x0) {
-      Error(409);
-      return;
+      throw;
     }
-    address proxy = new AccountProxy();
-    address controller = new AccountController(proxy, _signer, _recovery, uint96(_timeLock));
-    AccountProxy(proxy).transfer(controller);
+    address proxy = new AccountProxy(msg.sender, _lockAddr);
 
-    AccountCreated(_signer, proxy, controller, _recovery);
     signerToProxy[_signer] = proxy;
-    signerToController[_signer] = controller;
+    proxyToSigner[proxy] = _signer;
+    AccountCreated(_signer, proxy);
   }
   
-  function register(address _signer, address _proxy, address _controller) {
-    if (signerToProxy[_signer] != 0x0) {
-      Error(409);
-      return;
+  function handleRecovery(address _newSigner) {
+    address oldSigner = proxyToSigner[msg.sender];
+    address proxy = signerToProxy[oldSigner];
+    if (proxy == 0x0 || msg.sender != proxy) {
+      throw;
     }
-    if (msg.sender != _proxy) {
-      Error(401);
-      return;
-    }
-    signerToProxy[_signer] = _proxy;
-    signerToController[_signer] = _controller;
-  }
-  
-  function getAccount(address _signer) constant returns(address, address, uint96) {
-      AccountController controller = AccountController(signerToController[_signer]);
-      uint96 lastNonce = controller.lastNonce();
-      return (signerToProxy[_signer], controller, lastNonce);
-  }
-  
-  function handleRecovery(address _oldSigner, address _newSigner) {
-    //msg.sender
-    address proxy = signerToProxy[_oldSigner];
-    if (proxy == 0x0) {
-      Error(404);
-      return;
-    }
-    if (msg.sender != proxy) {
-      Error(401);
-      return;
-    }
-    delete signerToProxy[_oldSigner];
+    
+    delete signerToProxy[oldSigner];
     signerToProxy[_newSigner] = proxy;
-    signerToController[_newSigner] = signerToController[_oldSigner];
-    delete signerToController[_oldSigner];
-    AccountRecovered(_newSigner, proxy, _oldSigner);
+    proxyToSigner[msg.sender] = _newSigner;
+    AccountRecovered(_newSigner, proxy, oldSigner);
   }
 }

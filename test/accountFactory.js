@@ -1,30 +1,23 @@
 import { Receipt } from 'poker-helper';
 import ethUtil from 'ethereumjs-util';
 var AccountProxy = artifacts.require('../contracts/AccountProxy.sol');
-var AccountController = artifacts.require('../contracts/AccountController.sol');
 var AccountFactory = artifacts.require('../contracts/AccountFactory.sol');
 
 contract("AccountFactory", (accounts) => {
 
   const signer = accounts[1];
-  const recovery = accounts[2];
   const tokenAddr = accounts[4];
-  const RECOVERY_ADDR = '0x82e8c6cf42c8d1ff9594b17a3f50e94a12cc860f';
-  const RECOVERY_PRIV = '0x94890218f2b0d04296f30aeafd13655eba4c5bbf1770273276fee52cbe3f2cb4';
+  const LOCK_ADDR = '0x82e8c6cf42c8d1ff9594b17a3f50e94a12cc860f';
+  const LOCK_PRIV = '0x94890218f2b0d04296f30aeafd13655eba4c5bbf1770273276fee52cbe3f2cb4';
   const P_EMPTY = '0x0000000000000000000000000000000000000000';
 
   it("Correctly creates proxy, and controller", (done) => {
     let factory;
-    let controller;
     let proxy;
-    let newController;
     let newProxy;
     let proxyAddr;
     AccountProxy.new().then((contract) => {
       proxy = contract;
-      return AccountController.new();
-    }).then((contract) => {
-      controller = contract;
       return AccountFactory.new();
     }).then((contract) => {
       factory = contract;
@@ -35,33 +28,15 @@ contract("AccountFactory", (accounts) => {
         assert.equal(web3.eth.getCode(result.args.proxy),
                      web3.eth.getCode(proxy.address),
                      "Created proxy should have correct code");
-        assert.equal(web3.eth.getCode(result.args.controller),
-                     web3.eth.getCode(controller.address),
-                     "Created controller should have correct code");
-        assert.equal(result.args.recovery, recovery,
-                     "Create event should have correct recovery address");
+        assert.equal(result.args.signer, signer,
+                     "Create event should have correct signer address");
         // Check that the mapping has correct proxy address
-        factory.signerToProxy.call(signer).then((proxyAddr) => {
-          assert.equal(proxyAddr, result.args.proxy, 
+        factory.getAccount.call(signer).then((entry) => {
+          assert.equal(entry[0], result.args.proxy, 
             "Mapping should have the same address as event");
-          newProxy = AccountProxy.at(proxyAddr);
-          return newProxy.owner.call();
-        }).then((controllerAddr) => {
-          assert.equal(controllerAddr, result.args.controller,
-            "Created Contoller should be owner of proxy");
-          newController = AccountController.at(controllerAddr);
-          return newController.proxy.call();
-        }).then((proxyAddr) => {
-          assert.equal(proxyAddr, result.args.proxy,
-            "Created Proxy should be configured in controller");
-          return newController.signer.call();
-        }).then((signerAddr) => {
-          assert.equal(signerAddr, signer,
-            "Signer should be configured in controller.");
-          return newController.recovery.call();
-        }).then((recoveryAddr) => {
-          assert.equal(recoveryAddr, recovery,
-            "Recovery should be configured in controller.");
+          newProxy = AccountProxy.at(entry[0]);
+          assert.equal(entry[1], accounts[0],
+            "Tx sender should be owner of proxy");
           done();
         }).catch(done);
       });
@@ -69,20 +44,19 @@ contract("AccountFactory", (accounts) => {
       return web3.eth.getTransactionCount(factory.address)
     }).then(function(txCount) {
       proxyAddr = ethUtil.bufferToHex(ethUtil.generateAddress(factory.address, txCount));
-      factory.create(signer, recovery, tokenAddr, 0);
+      factory.create(signer, LOCK_ADDR);
     });
   });
 
   it("correctly recovers account", async () => {
     const newSigner = accounts[3];
     const factory = await AccountFactory.new();
-    await factory.create(signer, RECOVERY_ADDR, tokenAddr, 0);
-    let entry = await factory.getAccount.call(signer);
-    let controllerAddr = entry[1];
-    const controller = AccountController.at(controllerAddr);
-    const recoveryReceipt = new Receipt(controllerAddr).recover(1, newSigner).sign(RECOVERY_PRIV);
-    await controller.changeSigner(...Receipt.parseToParams(recoveryReceipt));
-    entry = await factory.getAccount.call(newSigner);
-    assert.equal(entry[1], controllerAddr, "Recovery not set in factory.");
+    await factory.create(signer, LOCK_ADDR);
+    const entry1 = await factory.getAccount.call(signer);
+    const proxy = AccountProxy.at(entry1[0]);
+    // bytes4(sha3("handleRecovery(address)"))
+    await proxy.forward(factory.address, 0, '0x5486413f000000000000000000000000'+newSigner.replace('0x', ''));
+    const entry2 = await factory.getAccount.call(newSigner);
+    assert.equal(entry2[1], entry1[1], "Recovery not set in factory.");
   });
 });

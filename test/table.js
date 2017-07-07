@@ -4,14 +4,6 @@ import BigNumber from 'bignumber.js';
 var Token = artifacts.require('../contracts/ERC223BasicToken.sol');
 var Table = artifacts.require('../contracts/Table.sol');
 
-const signStr = (privStr, payloadStr) => {
-  const priv = new Buffer(privStr.replace('0x', ''), 'hex');
-  const payload = new Buffer(payloadStr.replace('0x', ''), 'hex');
-  const hash = ethUtil.sha3(payload);
-  const sig = ethUtil.ecsign(hash, priv);
-  return sig.r.toString('hex') + sig.s.toString('hex') + sig.v.toString(16);
-};
-
 contract('Table', function(accounts) {
 
   const P0_ADDR = 'f3beac30c498d9e26865f34fcaa57dbb935b0d74';
@@ -83,57 +75,54 @@ contract('Table', function(accounts) {
   });
 
   it('should join table, then net, then leave.', async () => {
-
-    //bet 12000 p_0 hand 4 12 + 12 + 4 + 20 
-    var bet41 = '6ffcc71900000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000002ee0';
-    var betSig41 = signStr(P0_PRIV, bet41);
-    //bet 15000 p_0 hand 4
-    var bet411 = '6ffcc71900000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000003a98';
-    var betSig411 = signStr(P0_PRIV, bet411);
-    //bet 17000 p_1 hand 4
-    var bet42 = '6ffcc71900000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000004268';
-    var betSig42 = signStr(P1_PRIV, bet42);
-    //dist switch hand 4 claim 0
-    var dist40 = '9dd00b590000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000002f3beac30c498d9e26865f34fcaa57dbb935b0d74000000000000000000004268e10f3d125e5f4c753a6456fc37123cf17c6900f2000000000000000000003a98';
-    var distSig40 = signStr(ORACLE_PRIV, dist40);
-
-
-    //bet 20000 p_0 hand 5
-    var bet51 = '6ffcc71900000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000004e20';
-    var betSig51 = signStr(P0_PRIV, bet51);
-    //bet 20000 p_1 hand 5
-    var bet52 = '6ffcc71900000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000004e20';
-    var betSig52 = signStr(P1_PRIV, bet52);
-    //dist p_1 winns all hand 5 claim 0
-    var dist50 = '9dd00b590000000000000000000000000000000000000000000000000000000000000005000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000002e10f3d125e5f4c753a6456fc37123cf17c6900f2000000000000000000009c40f3beac30c498d9e26865f34fcaa57dbb935b0d74000000000000000000000000';
-    var distSig50 = signStr(P1_PRIV, dist50);
-    //dist p_0 winns all hand 5 claim 1
-    var dist51 = '9dd00b590000000000000000000000000000000000000000000000000000000000000005000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000002e10f3d125e5f4c753a6456fc37123cf17c6900f2000000000000000000000000f3beac30c498d9e26865f34fcaa57dbb935b0d74000000000000000000009c40';
-    var distSig51 = signStr(ORACLE_PRIV, dist51);
-
-    //bet 12000 p_0 hand 6
-    var bet61 = '6ffcc71900000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000002ee0';
-    var betSig61 = signStr(P0_PRIV, bet61);
-    //bet 20000 p_1 hand 6
-    var bet62 = '6ffcc71900000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000004e20';
-    var betSig62 = signStr(P1_PRIV, bet62);
-    //dist p_1 wins all hand 6 claim 1
-    var dist61 = '9dd00b590000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000002e10f3d125e5f4c753a6456fc37123cf17c6900f2000000000000000000007d00f3beac30c498d9e26865f34fcaa57dbb935b0d74000000000000000000000000';
-    var distSig61 = signStr(ORACLE_PRIV, dist61);
-    //dist p_0 winns all hand 6 claim 0
-    var dist60 = '9dd00b590000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000002e10f3d125e5f4c753a6456fc37123cf17c6900f2000000000000000000000000f3beac30c498d9e26865f34fcaa57dbb935b0d74000000000000000000007d00';
-    var distSig60 = signStr(ORACLE_PRIV, dist60);
-
     const token = await Token.new();
-    const table = await Table.new(token.address, ORACLE, 2000000000000, 2);
-    await token.transfer(accounts[1], 100000000000000);
-    await token.transData(table.address, 100000000000000, '0x00' + P0_ADDR);
-    await token.transData(table.address, 100000000000000, '0x01' + P1_ADDR, {from: accounts[1]});
+    const table = await Table.new(token.address, ORACLE, 20000000000000, 2);
 
+    // bet 120 NTZ p_0 hand 4
+    var bet41 = new Receipt(table.address).bet(4, new BigNumber(120000000000000)).sign(P0_PRIV);
+    // bet 150 NTZ p_0 hand 4
+    const bet411 = new Receipt(table.address).bet(4, new BigNumber(150000000000000)).sign(P0_PRIV);
+    // bet 170 NTZ p_1 hand 4
+    const bet42 = new Receipt(table.address).bet(4, new BigNumber(170000000000000)).sign(P1_PRIV);
+    // dist hand 4 claim 0 - 310 for p_1
+    const dist40 = new Receipt(table.address).dist(4, 0, [new BigNumber(0), new BigNumber(310000000000000)]).sign(ORACLE_PRIV);
+
+
+    // bet 200 p_0 hand 5
+    const bet51 = new Receipt(table.address).bet(5, new BigNumber(200000000000000)).sign(P0_PRIV);
+    // bet 200 p_1 hand 5
+    const bet52 = new Receipt(table.address).bet(5, new BigNumber(200000000000000)).sign(P1_PRIV);
+    // dist p_1 winns all hand 5 claim 0
+    const dist50 = new Receipt(table.address).dist(5, 0, [new BigNumber(0), new BigNumber(390000000000000)]).sign(ORACLE_PRIV);
+    // dist p_0 winns all hand 5 claim 1
+    const dist51 = new Receipt(table.address).dist(5, 1, [new BigNumber(390000000000000), new BigNumber(0)]).sign(ORACLE_PRIV);
+
+    // bet 120 p_0 hand 6
+    const bet61 = new Receipt(table.address).bet(6, new BigNumber(120000000000000)).sign(P0_PRIV);
+    // bet 200 p_1 hand 6
+    const bet62 = new Receipt(table.address).bet(6, new BigNumber(200000000000000)).sign(P1_PRIV);
+    // dist p_1 wins all hand 6 claim 1
+    const dist61 = new Receipt(table.address).dist(6, 1, [new BigNumber(0), new BigNumber(310000000000000)]).sign(ORACLE_PRIV);
+    // dist p_0 winns all hand 6 claim 0
+    const dist60 = new Receipt(table.address).dist(6, 0, [new BigNumber(310000000000000), new BigNumber(0)]).sign(ORACLE_PRIV);
+
+    await token.transfer(accounts[1], 1000000000000000);
+    await token.transData(table.address, 1000000000000000, '0x00' + P0_ADDR);
+    await token.transData(table.address, 1000000000000000, '0x01' + P1_ADDR, {from: accounts[1]});
+
+    // submit hand 4
+    let hand4 = [];
+    hand4 = hand4.concat(Receipt.parseToParams(bet41));
+    hand4 = hand4.concat(Receipt.parseToParams(bet411));
+    hand4 = hand4.concat(Receipt.parseToParams(bet42));
+    hand4 = hand4.concat(Receipt.parseToParams(dist40));
+
+    // TODO: submit
     await table.submitDists('0x' + dist40, '0x' + distSig40);
     var bets4 = '0x' + bet41 + bet42 + bet411;
     var betSigs4 = '0x' + betSig41 + betSig42 + betSig411;
     await table.submitBets(bets4, betSigs4);
+    // check hand 4
     let inVal = await table.getIn.call(4, '0x' + P0_ADDR);
     assert.equal(inVal.toNumber(), 15000, 'bet submission failed.');
     inVal = await table.getIn.call(4, '0x' + P1_ADDR);
@@ -143,6 +132,7 @@ contract('Table', function(accounts) {
     outVal = await table.getOut.call(4, '0x' + P1_ADDR);
     assert.equal(outVal[0].toNumber(), 15000, 'dist submission failed.');
 
+    // submit hand 5 and 6
     var dists = '0x' + dist40 + dist50 + dist51 + dist61 + dist60;
     var distSigs = '0x' + distSig40 + distSig50 + distSig51 + distSig61 + distSig60;
     await table.submitDists(dists, distSigs);
@@ -150,6 +140,7 @@ contract('Table', function(accounts) {
     var betSigs = '0x' + betSig41 + betSig42 + betSig411 + betSig51 + betSig52 + betSig61 + betSig62;
     await table.submitBets(bets, betSigs);
     
+    // check hand 5 and 6
     inVal = await table.getIn.call(5, '0x' + P0_ADDR);
     assert.equal(inVal.toNumber(), 20000, 'bet submission failed.');
     inVal = await table.getIn.call(5, '0x' + P1_ADDR);

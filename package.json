@@ -17,7 +17,7 @@
     "babel-runtime": "^6.23.0",
     "bignumber.js": "^4.0.1",
     "ethereumjs-util": "^4.5.0",
-    "poker-helper": "^0.3.19",
+    "poker-helper": "/Users/johann/dev/ab-poker-helper",
     "utf8": "^2.1.2"
   }
 }
