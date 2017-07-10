@@ -160,6 +160,7 @@ contract Table {
   }
 
   function tokenFallback(address _from, uint _value, bytes _data) {
+    assert(msg.sender == tokenAddr);
     // check the dough
     uint256 smallBlind = jozDecimals.mul(uint256(jozSb));
     if (40 * smallBlind > _value || _value > 400 * smallBlind) {
@@ -172,6 +173,7 @@ contract Table {
       pos := mload(add(_data, 1))
       signerAddr := mload(add(_data, 21))
     }
+    assert(signerAddr != 0x0);
 
     bool rebuy = false;
     // avoid player joining multiple times
@@ -236,12 +238,13 @@ contract Table {
       throw;
     }
     seats[pos].exitHand = handId;
-    //create new netting request
+    // create new netting request
     if (lastHandNetted < handId && lastNettingRequestHandId < handId) {
       NettingRequest(handId);
       lastNettingRequestHandId = handId;
       lastNettingRequestTime = now;
     }
+    // TODO: remove player if lastHandNetted >= handId
   }
 
   function net() {

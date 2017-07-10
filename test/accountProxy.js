@@ -43,7 +43,6 @@ contract("AccountProxy", (accounts) => {
       // Encode the transaction to send to the proxy contract
       event.watch((error, result) => {
         event.stopWatching()
-        //console.log(result)
         assert.equal(result.args.sender, accounts[1]);
         assert.equal(result.args.value.toNumber(), 10000000000000000);
         done();
