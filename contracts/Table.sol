@@ -22,7 +22,7 @@ contract Table {
     //in
     mapping (address => uint256) ins;
     //out
-    uint claimCount;
+    uint256 claimCount;
     mapping (address => uint256) outs;
   }
 
@@ -39,9 +39,9 @@ contract Table {
   uint32 public lastHandNetted;
   
   uint32 public lastNettingRequestHandId;
-  uint public lastNettingRequestTime;
+  uint256 public lastNettingRequestTime;
   
-  function Table(address _token, address _oracle, uint _smallBlind, uint _seats) {
+  function Table(address _token, address _oracle, uint256 _smallBlind, uint256 _seats) {
     tokenAddr = _token;
     oracle = _oracle;
     sb = _smallBlind;
@@ -60,7 +60,7 @@ contract Table {
     addresses = new address[](seats.length);
     amounts = new uint256[](seats.length);
     exitHands = new uint256[](seats.length);
-    for (uint i = 0; i < seats.length; i++) {
+    for (uint256 i = 0; i < seats.length; i++) {
         addresses[i] = seats[i].signerAddr;
         amounts[i] = seats[i].amount;
         exitHands[i] = seats[i].exitHand;
@@ -77,7 +77,7 @@ contract Table {
   }
 
   function inLineup(address _addr) constant returns (bool) {
-    for (uint i = 0; i < seats.length; i++) {
+    for (uint256 i = 0; i < seats.length; i++) {
       if (seats[i].signerAddr == _addr || seats[i].senderAddr == _addr) {
         return true;
       }
@@ -127,7 +127,7 @@ contract Table {
     assert(uint8(_newBal1 >> 224) == uint8(lastHandNetted));
     assert(uint8(_newBal1 >> 240) == uint8(address(this)));
 
-    for (uint i = 0; i < _sigs.length / 65; i++) {
+    for (uint256 i = 0; i < _sigs.length / 65; i++) {
       uint8 v;
       bytes32 r;
       bytes32 s;
@@ -171,24 +171,18 @@ contract Table {
 
     bool rebuy = false;
     // avoid player joining multiple times
-    for (uint i = 0; i < seats.length; i++ ) {
+    for (uint256 i = 0; i < seats.length; i++ ) {
       if (seats[i].senderAddr == _from) {
-        if (pos != i) {
-          throw;
-        }
+        assert(pos == i);
         rebuy = true;
       }
     }
 
     if (rebuy) {
       // check the dough
-      if (_value + seats[pos].amount > 400 * sb) {
-        throw;
-      }
+      assert(_value + seats[pos].amount <= sb.mul(400));
       // check exit hand
-      if (seats[pos].exitHand > 0) {
-        throw;
-      }
+      assert(seats[pos].exitHand == 0);
       seats[pos].amount += _value;
     } else {
       if (pos >=seats.length || seats[pos].amount > 0 || seats[pos].senderAddr != 0) {
@@ -218,8 +212,8 @@ contract Table {
     
     assert(ecrecover(sha3(uint8(0), dest, handId, signer), v, _r, _s) == oracle);
 
-    uint pos = seats.length;
-    for (uint i = 0; i < seats.length; i++) {
+    uint256 pos = seats.length;
+    for (uint256 i = 0; i < seats.length; i++) {
       if (seats[i].signerAddr == signer || seats[i].senderAddr == signer) {
         pos = i;
       }
@@ -239,30 +233,30 @@ contract Table {
     netHelp(now);
   }
   
-  function netHelp(uint _now) {
-    if (_now  > lastNettingRequestTime + 60 * 10) {
-      uint sumOfSeatBalances = 0;
-      for (uint j = 0; j < seats.length; j++) {
-        for (uint i = lastHandNetted + 1; i < lastNettingRequestHandId; i++ ) {
-          int amount = int(seats[j].amount);
-          amount += int(hands[i].outs[seats[j].signerAddr]) - int(hands[i].ins[seats[j].signerAddr]);
-          seats[j].amount = uint48(amount);
-        }
-        sumOfSeatBalances += seats[j].amount;
+  function netHelp(uint256 _now) returns (uint) {
+    assert(_now  >= lastNettingRequestTime + 60 * 10);
+    uint256 sumOfSeatBalances = 0;
+    for (uint256 j = 0; j < seats.length; j++) {
+      Seat seat = seats[j];
+      for (uint256 i = lastHandNetted + 3; i < lastNettingRequestHandId; i++ ) {
+        seat.amount = seat.amount.add(hands[i].outs[seat.signerAddr]).sub(hands[i].ins[seat.signerAddr]);
+        
       }
-      lastHandNetted = lastNettingRequestHandId;
-      Netted(lastHandNetted);
-      _payout(sumOfSeatBalances);
+      sumOfSeatBalances = sumOfSeatBalances.add(seat.amount);
     }
+    lastHandNetted = lastNettingRequestHandId;
+    Netted(lastHandNetted);
+    _payout(sumOfSeatBalances);
+    return sumOfSeatBalances;
   }
 
 
-  function _payout(uint sumOfSeatBalances) internal {
+  function _payout(uint256 sumOfSeatBalances) internal {
     var token = ERC20Basic(tokenAddr);
-    uint totalBal = token.balanceOf(address(this));
-    //token.transfer(oracle, totalBal.sub(sumOfSeatBalances));
+    uint256 totalBal = token.balanceOf(address(this));
+    token.transfer(oracle, totalBal.sub(sumOfSeatBalances));
 
-    for (uint i = 0; i < seats.length; i++) {
+    for (uint256 i = 0; i < seats.length; i++) {
       Seat seat = seats[i];
       if (seat.exitHand > 0 && lastHandNetted >= seat.exitHand) {
         if (seat.amount > 0) {
@@ -275,7 +269,7 @@ contract Table {
   }
 
   function submit(bytes32[] _data) returns (uint) {
-    uint next = 0;
+    uint256 next = 0;
 
     while (next + 3 <= _data.length) {
       uint8 v;
