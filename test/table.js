@@ -39,7 +39,7 @@ contract('Table', function(accounts) {
     const lhn = await table.lastHandNetted.call();
     assert.equal(lhn.toNumber(), 3, 'settlement failed for last hand.');
     seat = await table.seats.call(0);
-    assert.equal(seat[1].toNumber(), 109000, 'settlement failed for seat pos 2.');
+    assert.equal(seat[1].toNumber(), 109000000000000, 'settlement failed for seat pos 2.');
     const oracleBal = await token.balanceOf.call(ORACLE);
     assert.equal(oracleBal.toNumber(), 1000000000000, 'withdraw rake failed.');
     seat = await table.seats.call(1);
@@ -71,7 +71,7 @@ contract('Table', function(accounts) {
     assert.equal(seat[1].toNumber(), 0, 'settlement failed for seat pos 1.');
     assert.equal(seat[0], P_EMPTY, 'payout failed.');
     seat = await table.seats.call(1);
-    assert.equal(seat[1].toNumber(), 125000, 'settlement failed for seat pos 2.');
+    assert.equal(seat[1].toNumber(), 125000000000000, 'settlement failed for seat pos 2.');
   });
 
   it('should join table, then net, then leave.', async () => {
@@ -86,6 +86,30 @@ contract('Table', function(accounts) {
     const bet42 = new Receipt(table.address).bet(4, new BigNumber(170000000000000)).sign(P1_PRIV);
     // dist hand 4 claim 0 - 310 for p_1
     const dist40 = new Receipt(table.address).dist(4, 0, [new BigNumber(0), new BigNumber(310000000000000)]).sign(ORACLE_PRIV);
+
+
+    await token.transfer(accounts[1], 1000000000000000);
+    await token.transData(table.address, 1000000000000000, '0x00' + P0_ADDR);
+    await token.transData(table.address, 1000000000000000, '0x01' + P1_ADDR, {from: accounts[1]});
+
+    // submit hand 4
+    let hand4 = [];
+    hand4 = hand4.concat(Receipt.parseToParams(bet41));
+    hand4 = hand4.concat(Receipt.parseToParams(bet411));
+    hand4 = hand4.concat(Receipt.parseToParams(bet42));
+    hand4 = hand4.concat(Receipt.parseToParams(dist40));
+
+    await table.submit(hand4);
+
+    // check hand 4
+    let inVal = await table.getIn.call(4, '0x' + P0_ADDR);
+    assert.equal(inVal.toNumber(), 150000000000000, 'bet submission failed.');
+    inVal = await table.getIn.call(4, '0x' + P1_ADDR);
+    assert.equal(inVal.toNumber(), 170000000000000, 'bet submission failed.');
+    let outVal = await table.getOut.call(4, '0x' + P0_ADDR);
+    assert.equal(outVal[0].toNumber(), 0, 'dist submission failed.');
+    outVal = await table.getOut.call(4, '0x' + P1_ADDR);
+    assert.equal(outVal[0].toNumber(), 310000000000000, 'dist submission failed.');
 
 
     // bet 200 p_0 hand 5
@@ -106,71 +130,51 @@ contract('Table', function(accounts) {
     // dist p_0 winns all hand 6 claim 0
     const dist60 = new Receipt(table.address).dist(6, 0, [new BigNumber(310000000000000), new BigNumber(0)]).sign(ORACLE_PRIV);
 
-    await token.transfer(accounts[1], 1000000000000000);
-    await token.transData(table.address, 1000000000000000, '0x00' + P0_ADDR);
-    await token.transData(table.address, 1000000000000000, '0x01' + P1_ADDR, {from: accounts[1]});
-
-    // submit hand 4
-    let hand4 = [];
-    hand4 = hand4.concat(Receipt.parseToParams(bet41));
-    hand4 = hand4.concat(Receipt.parseToParams(bet411));
-    hand4 = hand4.concat(Receipt.parseToParams(bet42));
-    hand4 = hand4.concat(Receipt.parseToParams(dist40));
-
-    // TODO: submit
-    await table.submitDists('0x' + dist40, '0x' + distSig40);
-    var bets4 = '0x' + bet41 + bet42 + bet411;
-    var betSigs4 = '0x' + betSig41 + betSig42 + betSig411;
-    await table.submitBets(bets4, betSigs4);
-    // check hand 4
-    let inVal = await table.getIn.call(4, '0x' + P0_ADDR);
-    assert.equal(inVal.toNumber(), 15000, 'bet submission failed.');
-    inVal = await table.getIn.call(4, '0x' + P1_ADDR);
-    assert.equal(inVal.toNumber(), 17000, 'bet submission failed.');
-    let outVal = await table.getOut.call(4, '0x' + P0_ADDR);
-    assert.equal(outVal[0].toNumber(), 17000, 'dist submission failed.');
-    outVal = await table.getOut.call(4, '0x' + P1_ADDR);
-    assert.equal(outVal[0].toNumber(), 15000, 'dist submission failed.');
-
     // submit hand 5 and 6
-    var dists = '0x' + dist40 + dist50 + dist51 + dist61 + dist60;
-    var distSigs = '0x' + distSig40 + distSig50 + distSig51 + distSig61 + distSig60;
-    await table.submitDists(dists, distSigs);
-    var bets = '0x' + bet41 + bet42 + bet411 + bet51 + bet52 + bet61 + bet62;
-    var betSigs = '0x' + betSig41 + betSig42 + betSig411 + betSig51 + betSig52 + betSig61 + betSig62;
-    await table.submitBets(bets, betSigs);
+    let hands = [];
+    hands = hands.concat(Receipt.parseToParams(dist50));
+    hands = hands.concat(Receipt.parseToParams(dist51));
+    hands = hands.concat(Receipt.parseToParams(bet51));
+    hands = hands.concat(Receipt.parseToParams(bet52));
+    hands = hands.concat(Receipt.parseToParams(dist61));
+    hands = hands.concat(Receipt.parseToParams(dist60));
+    hands = hands.concat(Receipt.parseToParams(bet61));
+    hands = hands.concat(Receipt.parseToParams(bet62));
+    await table.submit(hands);
     
     // check hand 5 and 6
     inVal = await table.getIn.call(5, '0x' + P0_ADDR);
-    assert.equal(inVal.toNumber(), 20000, 'bet submission failed.');
+    assert.equal(inVal.toNumber(), 200000000000000, 'bet submission failed.');
     inVal = await table.getIn.call(5, '0x' + P1_ADDR);
-    assert.equal(inVal.toNumber(), 20000, 'bet submission failed.');
+    assert.equal(inVal.toNumber(), 200000000000000, 'bet submission failed.');
     outVal = await table.getOut.call(5, '0x' + P0_ADDR);
-    assert.equal(outVal[0].toNumber(), 40000, 'dist submission failed.');
+    assert.equal(outVal[0].toNumber(), 390000000000000, 'dist submission failed.');
     outVal = await table.getOut.call(5, '0x' + P1_ADDR);
-    assert.equal(outVal[0].toNumber(), 0, 'dist submission failed.');
+    assert.equal(outVal[0].toNumber(), 390000000000000, 'dist submission failed.');
 
     inVal = await table.getIn.call(6, '0x' + P0_ADDR);
-    assert.equal(inVal.toNumber(), 12000, 'bet submission failed.');
+    assert.equal(inVal.toNumber(), 120000000000000, 'bet submission failed.');
     inVal = await table.getIn.call(6, '0x' + P1_ADDR);
-    assert.equal(inVal.toNumber(), 20000, 'bet submission failed.');
+    assert.equal(inVal.toNumber(), 200000000000000, 'bet submission failed.');
 
     outVal = await table.getOut.call(6, '0x' + P0_ADDR);
     assert.equal(outVal[0].toNumber(), 0, 'dist submission failed.');
     outVal = await table.getOut.call(6, '0x' + P1_ADDR);
-    assert.equal(outVal[0].toNumber(), 32000, 'dist submission failed.');
+    assert.equal(outVal[0].toNumber(), 310000000000000, 'dist submission failed.');
     // make leave receipt
     const leaveReceipt = new Receipt(table.address).leave(7, P1_ADDR).sign(ORACLE_PRIV);
     await table.leave(...Receipt.parseToParams(leaveReceipt));
     const lnr = await table.lastNettingRequestHandId.call();
     assert.equal(lnr.toNumber(), 7, 'leave request failed.');
+    console.log('bef');
     await table.netHelp((Date.now() / 1000 | 0) + 61 * 10);
+    console.log('after');
     const lhn = await table.lastHandNetted.call();
     assert.equal(lhn.toNumber(), 7, 'settlement failed.');
 
     // 300000 buyin + 2000 (hand3) + 20000 (hand4) - 12000 = 310000
     let seat = await table.seats.call(0);
-    assert.equal(seat[1].toNumber(), 110000, 'settlement failed.');
+    assert.equal(seat[1].toNumber(), 920000000000000, 'settlement failed.');
     // rebuy with account 0
     await token.transData(table.address, 100000000000000, '0x00' + P0_ADDR);
     seat = await table.seats.call(0);
