@@ -78,6 +78,17 @@ contract('Table', function(accounts) {
     const token = await Token.new();
     const table = await Table.new(token.address, ORACLE, 20000000000000, 2);
 
+    await token.transfer(accounts[1], 1000000000000000);
+    await token.transData(table.address, 1000000000000000, '0x00' + P0_ADDR);
+    await token.transData(table.address, 1000000000000000, '0x01' + P1_ADDR, {from: accounts[1]});
+    // make leave receipt
+    const leaveReceipt = new Receipt(table.address).leave(7, P1_ADDR).sign(ORACLE_PRIV);
+    await table.leave(...Receipt.parseToParams(leaveReceipt));
+    const lnr = await table.lastNettingRequestHandId.call();
+    assert.equal(lnr.toNumber(), 7, 'leave request failed.');
+
+
+    // submit hand 4
     // bet 120 NTZ p_0 hand 4
     var bet41 = new Receipt(table.address).bet(4, new BigNumber(120000000000000)).sign(P0_PRIV);
     // bet 150 NTZ p_0 hand 4
@@ -86,13 +97,6 @@ contract('Table', function(accounts) {
     const bet42 = new Receipt(table.address).bet(4, new BigNumber(170000000000000)).sign(P1_PRIV);
     // dist hand 4 claim 0 - 310 for p_1
     const dist40 = new Receipt(table.address).dist(4, 0, [new BigNumber(0), new BigNumber(310000000000000)]).sign(ORACLE_PRIV);
-
-
-    await token.transfer(accounts[1], 1000000000000000);
-    await token.transData(table.address, 1000000000000000, '0x00' + P0_ADDR);
-    await token.transData(table.address, 1000000000000000, '0x01' + P1_ADDR, {from: accounts[1]});
-
-    // submit hand 4
     let hand4 = [];
     hand4 = hand4.concat(Receipt.parseToParams(bet41));
     hand4 = hand4.concat(Receipt.parseToParams(bet411));
@@ -158,11 +162,7 @@ contract('Table', function(accounts) {
     assert.equal(outVal[0].toNumber(), 0, 'dist submission failed.');
     outVal = await table.getOut.call(6, '0x' + P1_ADDR);
     assert.equal(outVal[0].toNumber(), 310000000000000, 'dist submission failed.');
-    // make leave receipt
-    const leaveReceipt = new Receipt(table.address).leave(7, P1_ADDR).sign(ORACLE_PRIV);
-    await table.leave(...Receipt.parseToParams(leaveReceipt));
-    const lnr = await table.lastNettingRequestHandId.call();
-    assert.equal(lnr.toNumber(), 7, 'leave request failed.');
+    // net
     await table.netHelp((Date.now() / 1000 | 0) + 61 * 10);
     const lhn = await table.lastHandNetted.call();
     assert.equal(lhn.toNumber(), 7, 'settlement failed.');

@@ -46,7 +46,6 @@ contract Table {
     oracle = _oracle;
     sb = _smallBlind;
     seats.length = _seats;
-    hands.length = 4;
     lastHandNetted = 1;
     lastNettingRequestHandId = 1;
     lastNettingRequestTime = now;
@@ -287,15 +286,14 @@ contract Table {
         t := calldataload(add(f, 13))
         rest := calldataload(add(f, 37))
       }
-      //assert(dest == uint24(address(this)));
-      if (hands.length <= handId) {
-        hands.length++;
-        // hands.length = handId + 1;
+      assert(dest == uint24(address(this)));
+      if (hands.length <= lastNettingRequestHandId) {
+        hands.length = lastNettingRequestHandId + 1;
       }
       // the receipt is a distribution
       if (t == 21) {
         signer = ecrecover(sha3(uint8(0), rest, _data[next+3]), v, _data[next], _data[next+1]);
-        //assert(signer == oracle && handId < hands.length);
+        assert(signer == oracle && handId < hands.length);
         assembly {
           v := mul(add(next, 3), 32)
           t := calldataload(add(v, 14))
@@ -317,7 +315,7 @@ contract Table {
       // the receipt is a bet/check/flop
       } else {
         signer = ecrecover(sha3(uint8(0), rest), v, _data[next], _data[next+1]);
-        //assert(inLineup(signer));
+        assert(inLineup(signer));
         assert(lastHandNetted < handId  && handId < hands.length);
         assembly {
           amount := calldataload(add(mul(add(next, 3), 32), 19))
