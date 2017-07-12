@@ -101,17 +101,9 @@ contract Table {
       s := mload(add(_toggleReceipt, 88))
       v := mload(add(_toggleReceipt, 89))
     }
-    if (dest != address(this)) {
-      throw;
-    }
-    
-    if (lastHandNetted != handId) {
-      throw;
-    }
-    
-    if (ecrecover(sha3(handId, dest), v, r, s) != oracle) {
-      throw;
-    }
+    assert(dest == address(this));
+    assert(lastHandNetted == handId);
+    assert(ecrecover(sha3(handId, dest), v, r, s) == oracle);
 
     active = !active;
   }
@@ -220,12 +212,15 @@ contract Table {
     assert(pos < seats.length);
     seats[pos].exitHand = handId;
     // create new netting request
-    if (lastHandNetted < handId && lastNettingRequestHandId < handId) {
-      NettingRequest(handId);
-      lastNettingRequestHandId = handId;
-      lastNettingRequestTime = now;
+    if (lastHandNetted < handId) {
+      if (lastNettingRequestHandId < handId) {
+        NettingRequest(handId);
+        lastNettingRequestHandId = handId;
+        lastNettingRequestTime = now;
+      }
+    } else {
+      _payout(0);
     }
-    // TODO: remove player if lastHandNetted >= handId
   }
 
   function net() {
@@ -236,7 +231,7 @@ contract Table {
     assert(_now  >= lastNettingRequestTime + 60 * 10);
     uint256 sumOfSeatBalances = 0;
     for (uint256 j = 0; j < seats.length; j++) {
-      Seat seat = seats[j];
+      Seat storage seat = seats[j];
       for (uint256 i = lastHandNetted + 3; i < lastNettingRequestHandId; i++ ) {
         seat.amount = seat.amount.add(hands[i].outs[seat.signerAddr]).sub(hands[i].ins[seat.signerAddr]);
         
@@ -250,13 +245,15 @@ contract Table {
   }
 
 
-  function _payout(uint256 sumOfSeatBalances) internal {
+  function _payout(uint256 _sumOfSeatBalances) internal {
     var token = ERC20Basic(tokenAddr);
-    uint256 totalBal = token.balanceOf(address(this));
-    token.transfer(oracle, totalBal.sub(sumOfSeatBalances));
+    if (_sumOfSeatBalances > 0) {
+      uint256 totalBal = token.balanceOf(address(this));
+      token.transfer(oracle, totalBal.sub(_sumOfSeatBalances));
+    }
 
     for (uint256 i = 0; i < seats.length; i++) {
-      Seat seat = seats[i];
+      Seat storage seat = seats[i];
       if (seat.exitHand > 0 && lastHandNetted >= seat.exitHand) {
         if (seat.amount > 0) {
           token.transfer(seat.senderAddr, seat.amount);
@@ -312,7 +309,7 @@ contract Table {
           }
         }
         next = next + 4;
-      // the receipt is a bet/check/flop
+      // the receipt is a bet/check/fold
       } else {
         signer = ecrecover(sha3(uint8(0), rest), v, _data[next], _data[next+1]);
         assert(inLineup(signer));

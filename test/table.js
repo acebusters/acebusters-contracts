@@ -46,6 +46,19 @@ contract('Table', function(accounts) {
     assert.equal(seat[1].toNumber(), 0, 'payout failed.');
   });
 
+  it("should join and immediately leave.", async () => {
+    const token = await Token.new();
+    const table = await Table.new(token.address, ORACLE, 2000000000000, 2);
+    await token.transData(table.address, 100000000000000, '0x00' + P0_ADDR);
+    let seat = await table.seats.call(0);
+    assert.equal(seat[0], accounts[0], 'join failed.');
+    // create the leave receipt here.
+    const leaveReceipt = new Receipt(table.address).leave(1, P0_ADDR).sign(ORACLE_PRIV);
+    await table.leave(...Receipt.parseToParams(leaveReceipt));
+    seat = await table.seats.call(0);
+    assert.equal(seat[1].toNumber(), 0, 'payout failed.');
+  });
+
   it("should join table, then settle, then leave broke.", async () => {
     const token = await Token.new();
     const table = await Table.new(token.address, ORACLE, 2000000000000, 2);
