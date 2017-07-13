@@ -21,9 +21,7 @@ contract AccountFactory {
   }
 
   function create(address _signer, address _lockAddr) {
-    if (signerToProxy[_signer] != 0x0) {
-      throw;
-    }
+    assert(signerToProxy[_signer] == 0x0);
     address proxy = new AccountProxy(msg.sender, _lockAddr);
 
     signerToProxy[_signer] = proxy;
@@ -34,9 +32,7 @@ contract AccountFactory {
   function handleRecovery(address _newSigner) {
     address oldSigner = proxyToSigner[msg.sender];
     address proxy = signerToProxy[oldSigner];
-    if (proxy == 0x0 || msg.sender != proxy) {
-      throw;
-    }
+    assert(proxy != 0x0 && msg.sender == proxy);
     
     delete signerToProxy[oldSigner];
     signerToProxy[_newSigner] = proxy;

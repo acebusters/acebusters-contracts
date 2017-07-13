@@ -47,9 +47,7 @@ contract AccountProxy {
         _destination := create(0,add(_data,0x20), mload(_data))
       }
     } else {
-      if (!_destination.call.value(_value)(_data)) { // send eth or data
-        throw;
-      }
+      assert(_destination.call.value(_value)(_data)); // send eth or data
       if (_value > 0) {
         Withdrawal(_destination, _value, _data);
       }
@@ -65,9 +63,7 @@ contract AccountProxy {
   // ############################################
   
   function unlock(bytes32 _r, bytes32 _s, bytes32 _pl) {
-    if (lockAddr == 0x0) {
-      throw;
-    }
+    assert(lockAddr != 0x0);
     // parse receipt data
     uint8 v;
     uint88 target;
@@ -78,12 +74,10 @@ contract AccountProxy {
         newOwner := calldataload(68)
     }
     // check permission
-    if (target != uint88(address(this)) || newOwner != msg.sender || newOwner == owner) {
-      throw;
-    }
-    if (ecrecover(sha3(uint8(0), target, newOwner), v, _r, _s) != lockAddr) {
-      throw;
-    }
+    assert(target == uint88(address(this)));
+    assert(newOwner == msg.sender);
+    assert(newOwner != owner);
+    assert(ecrecover(sha3(uint8(0), target, newOwner), v, _r, _s) == lockAddr);
     // update state
     owner = newOwner;
     lockAddr = 0x0;
@@ -102,9 +96,7 @@ contract AccountProxy {
    */
   function() payable {
     // if locked, only allow 0.1 ETH max
-    if (lockAddr != 0x0 && (this.balance + msg.value) > 100000000000000000) {
-      throw;
-    }
+    assert(lockAddr == 0x0 || (this.balance + msg.value) <= 100000000000000000);
     Deposit(msg.sender, msg.value);
   }
 

@@ -148,9 +148,7 @@ contract Table {
   function tokenFallback(address _from, uint256 _value, bytes _data) {
     assert(msg.sender == tokenAddr);
     // check the dough
-    if (40 * sb > _value || _value > 400 * sb) {
-      throw;
-    }
+    assert(40 * sb <= _value && _value <= 400 * sb);
 
     uint8 pos;
     address signerAddr;

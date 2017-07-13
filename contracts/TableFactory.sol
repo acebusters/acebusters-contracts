@@ -29,20 +29,14 @@ contract TableFactory is Owned {
   }
   
   function configure(address _token, address _oracle) onlyOwner {
-    if (_token == 0x0 || _oracle == 0x0) {
-      throw;
-    }
+    assert(_token != 0x0 && _oracle != 0x0);
     tokenAddress = _token;
     oracleAddress = _oracle;
   }
 
   function create(uint96 _smallBlind, uint _seats) onlyOwner returns (address) {
-    if (_smallBlind == 0 || tokenAddress == 0x0 || oracleAddress == 0x0) {
-      throw;
-    }
-    if (_seats < 2 || _seats > 10) {
-      throw;
-    }
+    assert(_smallBlind != 0 && tokenAddress != 0x0 && oracleAddress != 0x0);
+    assert(2 <= _seats && _seats <= 10);
     address table = new Table(tokenAddress, oracleAddress, _smallBlind, _seats);
     if (Table(table).active()) {
       uint pos = tables.length++;
