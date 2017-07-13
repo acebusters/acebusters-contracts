@@ -1,5 +1,5 @@
 {
-  "name": "acebusters contracts",
+  "name": "ab-contracts",
   "version": "0.1.2",
   "description": "acebusters contracts",
   "keywords": [
@@ -17,7 +17,7 @@
     "babel-runtime": "^6.23.0",
     "bignumber.js": "^4.0.1",
     "ethereumjs-util": "^4.5.0",
-    "poker-helper": "^0.4.0",
+    "poker-helper": "0.4.1",
     "utf8": "^2.1.2"
   }
 }

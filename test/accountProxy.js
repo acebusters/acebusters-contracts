@@ -1,3 +1,4 @@
+import { Receipt } from 'poker-helper';
 const NutzMock = artifacts.require("../contracts/ERC223BasicToken.sol");
 const AccountProxy = artifacts.require('../contracts/AccountProxy.sol');
 require('./helpers/transactionMined.js');
@@ -33,6 +34,23 @@ contract("AccountProxy", (accounts) => {
     const bal = await token.balanceOf.call(proxy.address);
     // should hold tokens purchased at ceiling price, here 3000
     assert.equal(bal.toNumber(), 1666666766666, 'forward failed.');
+  });
+
+  it("should allow to unlock", async () => {
+    const METAMASK_ADDR = accounts[1];
+    const LOCK_ADDR = '0x82e8c6cf42c8d1ff9594b17a3f50e94a12cc860f';
+    const LOCK_PRIV = '0x94890218f2b0d04296f30aeafd13655eba4c5bbf1770273276fee52cbe3f2cb4';
+    // create proxy contract
+    const proxy = await AccountProxy.new(accounts[0], LOCK_ADDR);
+    // check locked
+    let isLocked = await proxy.isLocked.call();
+    assert(isLocked);
+    // unlock
+    const unlock = new Receipt(proxy.address).unlock(METAMASK_ADDR).sign(LOCK_PRIV);
+    await proxy.unlock(...Receipt.parseToParams(unlock), {from: METAMASK_ADDR});
+    // check unlocked
+    isLocked = await proxy.isLocked.call();
+    assert(!isLocked);
   });
 
   it("Receives transaction", (done) => {

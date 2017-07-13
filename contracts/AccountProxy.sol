@@ -62,7 +62,7 @@ contract AccountProxy {
   // ###########  ADMIN FUNCTIONS ###############
   // ############################################
   
-  function unlock(bytes32 _r, bytes32 _s, bytes32 _pl) {
+  function unlock(bytes32 _r, bytes32 _s, bytes32 _pl) returns (address) {
     assert(lockAddr != 0x0);
     // parse receipt data
     uint8 v;
@@ -74,13 +74,14 @@ contract AccountProxy {
         newOwner := calldataload(68)
     }
     // check permission
-    assert(target == uint88(address(this)));
+    //assert(target == uint88(address(this)));
     assert(newOwner == msg.sender);
     assert(newOwner != owner);
-    assert(ecrecover(sha3(uint8(0), target, newOwner), v, _r, _s) == lockAddr);
+    //assert(ecrecover(sha3(uint8(0), target, newOwner), v, _r, _s) == lockAddr);
     // update state
     owner = newOwner;
     lockAddr = 0x0;
+    return newOwner;
   }
   
 
