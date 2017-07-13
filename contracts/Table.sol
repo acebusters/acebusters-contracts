@@ -230,7 +230,7 @@ contract Table {
     uint256 sumOfSeatBalances = 0;
     for (uint256 j = 0; j < seats.length; j++) {
       Seat storage seat = seats[j];
-      for (uint256 i = lastHandNetted + 3; i < lastNettingRequestHandId; i++ ) {
+      for (uint256 i = lastHandNetted + 1; i <= lastNettingRequestHandId; i++ ) {
         seat.amount = seat.amount.add(hands[i].outs[seat.signerAddr]).sub(hands[i].ins[seat.signerAddr]);
         
       }
