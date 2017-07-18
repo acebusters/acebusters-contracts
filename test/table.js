@@ -4,7 +4,7 @@ import BigNumber from 'bignumber.js';
 var Token = artifacts.require('../contracts/ERC223BasicToken.sol');
 var Table = artifacts.require('../contracts/Table.sol');
 const NTZ_DECIMALS = new BigNumber(10).pow(12);
-const babz = (ntz) => new BigNumber(NTZ_DECIMALS).mul(ntz);
+const babz = (ntz) => NTZ_DECIMALS.mul(ntz);
 
 contract('Table', function(accounts) {
 
@@ -36,7 +36,7 @@ contract('Table', function(accounts) {
     await table.leave(...Receipt.parseToParams(leaveReceipt));
     seat = await table.seats.call(1);
     assert.equal(seat[3].toNumber(), 3, 'leave request failed.');
-    const settleReceipt = new Receipt(table.address).settle(1, 3, [new BigNumber(9000000000000), new BigNumber(-10000000000000)]).sign(ORACLE_PRIV);
+    const settleReceipt = new Receipt(table.address).settle(1, 3, [babz(9), new BigNumber(-10000000000000)]).sign(ORACLE_PRIV);
     await table.settle(...Receipt.parseToParams(settleReceipt));
     const lhn = await table.lastHandNetted.call();
     assert.equal(lhn.toNumber(), 3, 'settlement failed for last hand.');
@@ -63,30 +63,33 @@ contract('Table', function(accounts) {
 
   it("should join table, then settle, then leave broke.", async () => {
     const token = await Token.new();
-    const table = await Table.new(token.address, ORACLE, 2000000000000, 10);
-    await token.transfer(accounts[1], 100000000000000);
-    await token.transData(table.address, 100000000000000, '0x00' + P0_ADDR);
-    await token.transData(table.address, 100000000000000, '0x01' + P1_ADDR, {from: accounts[1]});
+    const table = await Table.new(token.address, ORACLE, babz(2), 10);
+    await token.transfer(accounts[1], babz(100));
+    await token.transData(table.address, babz(100), '0x00' + P0_ADDR);
+    await token.transData(table.address, babz(100), '0x01' + P1_ADDR, {from: accounts[1]});
     let seat = await table.seats.call(0);
     assert.equal(seat[0], accounts[0], 'join failed.');
     seat = await table.seats.call(1);
     assert.equal(seat[0], accounts[1], 'join failed.');
     // create the leave receipt here.
-    const leaveReceipt = new Receipt(table.address).leave(3, P0_ADDR).sign(ORACLE_PRIV);
+    const leaveReceipt = new Receipt(table.address).leave(3, P1_ADDR).sign(ORACLE_PRIV);
     await table.leave(...Receipt.parseToParams(leaveReceipt));
-    seat = await table.seats.call(0);
+    seat = await table.seats.call(1);
     // reading the exitHand from hand
     assert.equal(seat[3].toNumber(), 3, 'leave request failed.');
     // prepare settlement
-    var settleReceipt = new Receipt(table.address).settle(1, 3, [new BigNumber(-30000000000000), new BigNumber(25000000000000)]).sign(ORACLE_PRIV);
+    var settleReceipt = new Receipt(table.address).settle(1, 3, [babz(90), babz(-100)]).sign(ORACLE_PRIV);
     await table.settle(...Receipt.parseToParams(settleReceipt));
     const lhn = await table.lastHandNetted.call();
     assert.equal(lhn.toNumber(), 3, 'settlement failed for last hand.');
     seat = await table.seats.call(0);
-    assert.equal(seat[1].toNumber(), 0, 'settlement failed for seat pos 1.');
-    assert.equal(seat[0], P_EMPTY, 'payout failed.');
+    assert.equal(seat[1].toNumber(), babz(190), 'settlement failed for seat pos 0.');
+    // check player 1 left table and has 0 balance token contract
     seat = await table.seats.call(1);
-    assert.equal(seat[1].toNumber(), 125000000000000, 'settlement failed for seat pos 2.');
+    assert.equal(seat[0], P_EMPTY, 'payout failed.');
+    assert.equal(seat[1].toNumber(), 0, 'settlement failed for seat pos 1.');
+    const bal = await token.balanceOf.call(accounts[1]);
+    assert.equal(bal.toNumber(), 0);
   });
 
   it('should join table, then net, then leave.', async () => {
