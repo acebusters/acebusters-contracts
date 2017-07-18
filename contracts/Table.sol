@@ -113,6 +113,7 @@ contract Table {
   function settle(bytes _sigs, bytes32 _newBal1, bytes32 _newBal2) {
     // TODO: keeping track of who has signed,
     uint8 handsNetted = uint8(_newBal1 >> 232);
+    assert(handsNetted > 0);
 
     // handId byte
     assert(uint8(_newBal1 >> 224) == uint8(lastHandNetted));
