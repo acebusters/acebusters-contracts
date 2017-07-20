@@ -40,8 +40,9 @@ contract Table {
   
   uint32 public lastNettingRequestHandId;
   uint256 public lastNettingRequestTime;
+  uint256 disputeTime;
   
-  function Table(address _token, address _oracle, uint256 _smallBlind, uint256 _seats) {
+  function Table(address _token, address _oracle, uint256 _smallBlind, uint256 _seats, uint256 _disputeTime) {
     tokenAddr = _token;
     oracle = _oracle;
     sb = _smallBlind;
@@ -49,6 +50,7 @@ contract Table {
     lastHandNetted = 1;
     lastNettingRequestHandId = 1;
     lastNettingRequestTime = now;
+    disputeTime = _disputeTime;
   }
 
   function smallBlind() constant returns (uint256) {
@@ -223,11 +225,7 @@ contract Table {
   }
 
   function net() {
-    netHelp(now);
-  }
-  
-  function netHelp(uint256 _now) returns (uint) {
-    assert(_now  >= lastNettingRequestTime + 60 * 10);
+    assert(now  >= lastNettingRequestTime + disputeTime);
     uint256 sumOfSeatBalances = 0;
     for (uint256 j = 0; j < seats.length; j++) {
       Seat storage seat = seats[j];
@@ -240,9 +238,7 @@ contract Table {
     lastHandNetted = lastNettingRequestHandId;
     Netted(lastHandNetted);
     _payout(sumOfSeatBalances);
-    return sumOfSeatBalances;
   }
-
 
   function _payout(uint256 _sumOfSeatBalances) internal {
     var token = ERC20Basic(tokenAddr);
@@ -263,8 +259,9 @@ contract Table {
     }
   }
 
-  function submit(bytes32[] _data) returns (uint) {
+  function submit(bytes32[] _data) returns (uint writeCount) {
     uint256 next = 0;
+    writeCount = 0;
 
     while (next + 3 <= _data.length) {
       uint8 v;
@@ -305,6 +302,7 @@ contract Table {
                 break;
             }
             hands[handId].outs[seats[t].signerAddr] = jozDecimals.mul(amount);
+            writeCount++;
           }
         }
         next = next + 4;
@@ -319,6 +317,7 @@ contract Table {
         uint256 value = jozDecimals.mul(amount);
         if (value > hands[handId].ins[signer]) {
           hands[handId].ins[signer] = value;
+          writeCount++;
         }
         next = next + 3;
       }

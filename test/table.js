@@ -22,7 +22,7 @@ contract('Table', function(accounts) {
 
   it("should join table, then settle, then leave.", async () => {
     const token = await Token.new();
-    const table = await Table.new(token.address, ORACLE, 2000000000000, 2);
+    const table = await Table.new(token.address, ORACLE, 2000000000000, 2, 0);
     const blind = await table.smallBlind.call();
     assert.equal(blind.toNumber(), 2000000000000, 'config failed.');
     await token.transfer(accounts[1], 100000000000000);
@@ -51,7 +51,7 @@ contract('Table', function(accounts) {
 
   it("should join and immediately leave.", async () => {
     const token = await Token.new();
-    const table = await Table.new(token.address, ORACLE, 2000000000000, 2);
+    const table = await Table.new(token.address, ORACLE, 2000000000000, 2, 0);
     await token.transData(table.address, 100000000000000, '0x00' + P0_ADDR);
     let seat = await table.seats.call(0);
     assert.equal(seat[0], accounts[0], 'join failed.');
@@ -77,7 +77,7 @@ contract('Table', function(accounts) {
 
   it("should join table, then settle, then leave broke.", async () => {
     const token = await Token.new();
-    const table = await Table.new(token.address, ORACLE, babz(1), 2);
+    const table = await Table.new(token.address, ORACLE, babz(1), 2, 0);
     await token.transfer(accounts[1], babz(40));
     await token.transData(table.address, babz(40), '0x00' + P0_ADDR);
     await token.transData(table.address, babz(40), '0x01' + P1_ADDR, {from: accounts[1]});
@@ -108,7 +108,7 @@ contract('Table', function(accounts) {
 
   it('should join table, then net, then leave.', async () => {
     const token = await Token.new();
-    const table = await Table.new(token.address, ORACLE, babz(20), 2);
+    const table = await Table.new(token.address, ORACLE, babz(20), 2, 0);
 
     await token.transfer(accounts[1], babz(1000));
     await token.transData(table.address, babz(1000), '0x00' + P0_ADDR);
@@ -173,6 +173,8 @@ contract('Table', function(accounts) {
     hands = hands.concat(Receipt.parseToParams(dist60));
     hands = hands.concat(Receipt.parseToParams(bet61));
     hands = hands.concat(Receipt.parseToParams(bet62));
+    const writeCount = await table.submit.call(hands);
+    assert.equal(writeCount.toNumber(), 6, 'not all receipt recognized');
     await table.submit(hands);
     
     // check hand 5 and 6
@@ -195,7 +197,7 @@ contract('Table', function(accounts) {
     outVal = await table.getOut.call(6, '0x' + P1_ADDR);
     assert.equal(outVal[0].toNumber(), 310000000000000, 'dist submission failed.');
     // net
-    await table.netHelp((Date.now() / 1000 | 0) + 61 * 10);
+    await table.net();
     const lhn = await table.lastHandNetted.call();
     assert.equal(lhn.toNumber(), 6, 'settlement failed.');
 

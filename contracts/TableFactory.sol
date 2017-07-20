@@ -7,6 +7,7 @@ contract TableFactory is Owned {
 
   address public tokenAddress;
   address public oracleAddress;
+  uint256 public disputeTime;
     
   address[] public tables;
   
@@ -28,16 +29,17 @@ contract TableFactory is Owned {
     return rv;
   }
   
-  function configure(address _token, address _oracle) onlyOwner {
+  function configure(address _token, address _oracle, uint256 _disputeTime) onlyOwner {
     assert(_token != 0x0 && _oracle != 0x0);
     tokenAddress = _token;
     oracleAddress = _oracle;
+    disputeTime = _disputeTime;
   }
 
   function create(uint96 _smallBlind, uint _seats) onlyOwner returns (address) {
     assert(_smallBlind != 0 && tokenAddress != 0x0 && oracleAddress != 0x0);
     assert(2 <= _seats && _seats <= 10);
-    address table = new Table(tokenAddress, oracleAddress, _smallBlind, _seats);
+    address table = new Table(tokenAddress, oracleAddress, _smallBlind, _seats, disputeTime);
     if (Table(table).active()) {
       uint pos = tables.length++;
       tables[pos] = table;

@@ -7,7 +7,7 @@ contract("TableFactory", (accounts) => {
     const oracle = accounts[1];
     const token = accounts[1];
     const factory = await TableFactory.new();
-    await factory.configure(token, oracle);
+    await factory.configure(token, oracle, 0);
     await factory.create(50, 8);
     const tables = await factory.getTables.call();
     assert.equal(tables.length, 1, 'table not created.');
@@ -17,7 +17,7 @@ contract("TableFactory", (accounts) => {
     const oracle = accounts[1];
     const token = accounts[1];
     const factory = await TableFactory.new();
-    await factory.configure(token, oracle);
+    await factory.configure(token, oracle, 0);
     await factory.create(50, 2);
     await factory.create(100, 4);
     await factory.create(150, 6);
