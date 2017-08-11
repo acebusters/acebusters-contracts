@@ -110,44 +110,7 @@ contract Table {
     active = !active;
   }
   
-  // This function is called if all players agree to settle without dispute.
-  // A list of changes to all balances is signed by all active players and submited.
-  function settle(bytes _sigs, bytes32 _newBal1, bytes32 _newBal2) {
-    // TODO: keeping track of who has signed,
-    uint8 handsNetted = uint8(_newBal1 >> 232);
-    assert(handsNetted > 0);
-
-    // handId byte
-    assert(uint8(_newBal1 >> 224) == uint8(lastHandNetted));
-    assert(uint8(_newBal1 >> 240) == uint8(address(this)));
-
-    for (uint256 i = 0; i < _sigs.length / 65; i++) {
-      uint8 v;
-      bytes32 r;
-      bytes32 s;
-      assembly {
-        v := mload(add(_sigs, add(1, mul(i, 65))))
-        r := mload(add(_sigs, add(33, mul(i, 65))))
-        s := mload(add(_sigs, add(65, mul(i, 65))))
-      }
-      assert(inLineup(ecrecover(sha3(_newBal1, _newBal2), v, r, s)));
-    }
-
-    uint256 sumOfSeatBalances = 0;
-    for (i = 0; i < seats.length; i++) {
-      int48 diff;
-      assembly {
-        diff := calldataload(add(14, mul(i, 6)))
-      }
-      seats[i].amount = uint256(int256(seats[i].amount) + (int256(jozDecimals) * diff));
-      sumOfSeatBalances += seats[i].amount;
-    }
-
-    lastHandNetted += handsNetted;
-    Netted(lastHandNetted);
-    _payout(sumOfSeatBalances);
-  }
-
+  // Join
   function tokenFallback(address _from, uint256 _value, bytes _data) {
     assert(msg.sender == tokenAddr);
     // check the dough
@@ -211,6 +174,7 @@ contract Table {
       }
     }
     assert(pos < seats.length);
+    assert(seats[pos].exitHand == 0);
     seats[pos].exitHand = handId;
     // create new netting request
     if (lastHandNetted < handId) {
@@ -224,39 +188,42 @@ contract Table {
     }
   }
 
-  function net() {
-    assert(now  >= lastNettingRequestTime + disputeTime);
-    uint256 sumOfSeatBalances = 0;
-    for (uint256 j = 0; j < seats.length; j++) {
-      Seat storage seat = seats[j];
-      for (uint256 i = lastHandNetted + 1; i <= lastNettingRequestHandId; i++ ) {
-        seat.amount = seat.amount.add(hands[i].outs[seat.signerAddr]).sub(hands[i].ins[seat.signerAddr]);
-        
+  // This function is called if all players agree to settle without dispute.
+  // A list of changes to all balances is signed by all active players and submited.
+  function settle(bytes _sigs, bytes32 _newBal1, bytes32 _newBal2) {
+    // TODO: keeping track of who has signed,
+    uint8 handsNetted = uint8(_newBal1 >> 232);
+    assert(handsNetted > 0);
+
+    // handId byte
+    assert(uint8(_newBal1 >> 224) == uint8(lastHandNetted));
+    assert(uint8(_newBal1 >> 240) == uint8(address(this)));
+
+    for (uint256 i = 0; i < _sigs.length / 65; i++) {
+      uint8 v;
+      bytes32 r;
+      bytes32 s;
+      assembly {
+        v := mload(add(_sigs, add(1, mul(i, 65))))
+        r := mload(add(_sigs, add(33, mul(i, 65))))
+        s := mload(add(_sigs, add(65, mul(i, 65))))
       }
-      sumOfSeatBalances = sumOfSeatBalances.add(seat.amount);
+      assert(inLineup(ecrecover(sha3(_newBal1, _newBal2), v, r, s)));
     }
-    lastHandNetted = lastNettingRequestHandId;
+
+    uint256 sumOfSeatBalances = 0;
+    for (i = 0; i < seats.length; i++) {
+      int48 diff;
+      assembly {
+        diff := calldataload(add(14, mul(i, 6)))
+      }
+      seats[i].amount = uint256(int256(seats[i].amount) + (int256(jozDecimals) * diff));
+      sumOfSeatBalances += seats[i].amount;
+    }
+
+    lastHandNetted += handsNetted;
     Netted(lastHandNetted);
     _payout(sumOfSeatBalances);
-  }
-
-  function _payout(uint256 _sumOfSeatBalances) internal {
-    var token = ERC20Basic(tokenAddr);
-    if (_sumOfSeatBalances > 0) {
-      uint256 totalBal = token.balanceOf(address(this));
-      token.transfer(oracle, totalBal.sub(_sumOfSeatBalances));
-    }
-
-    for (uint256 i = 0; i < seats.length; i++) {
-      Seat storage seat = seats[i];
-      if (seat.exitHand > 0 && lastHandNetted >= seat.exitHand) {
-        if (seat.amount > 0) {
-          token.transfer(seat.senderAddr, seat.amount);
-        }
-        Leave(seat.senderAddr);
-        delete seats[i];
-      }
-    }
   }
 
   function submit(bytes32[] _data) returns (uint writeCount) {
@@ -320,6 +287,42 @@ contract Table {
           writeCount++;
         }
         next = next + 3;
+      }
+    }
+  }
+
+
+  function net() {
+    assert(now  >= lastNettingRequestTime + disputeTime);
+    uint256 sumOfSeatBalances = 0;
+    for (uint256 j = 0; j < seats.length; j++) {
+      Seat storage seat = seats[j];
+      for (uint256 i = lastHandNetted + 1; i <= lastNettingRequestHandId; i++ ) {
+        seat.amount = seat.amount.add(hands[i].outs[seat.signerAddr]).sub(hands[i].ins[seat.signerAddr]);
+        
+      }
+      sumOfSeatBalances = sumOfSeatBalances.add(seat.amount);
+    }
+    lastHandNetted = lastNettingRequestHandId;
+    Netted(lastHandNetted);
+    _payout(sumOfSeatBalances);
+  }
+
+  function _payout(uint256 _sumOfSeatBalances) internal {
+    var token = ERC20Basic(tokenAddr);
+    if (_sumOfSeatBalances > 0) {
+      uint256 totalBal = token.balanceOf(address(this));
+      token.transfer(oracle, totalBal.sub(_sumOfSeatBalances));
+    }
+
+    for (uint256 i = 0; i < seats.length; i++) {
+      Seat storage seat = seats[i];
+      if (seat.exitHand > 0 && lastHandNetted >= seat.exitHand) {
+        if (seat.amount > 0) {
+          token.transfer(seat.senderAddr, seat.amount);
+        }
+        Leave(seat.senderAddr);
+        delete seats[i];
       }
     }
   }
