@@ -53,6 +53,65 @@ contract("AccountProxy", (accounts) => {
     assert(!isLocked);
   });
 
+  it("Receives transaction when deposit amount less than 0.1 ether", (done) => {
+    let proxy;
+    AccountProxy.new(accounts[0], accounts[1]).then((contract) => {
+      proxy = contract;
+      const event = proxy.Deposit();
+      // Encode the transaction to send to the proxy contract
+      event.watch((error, result) => {
+        event.stopWatching()
+        assert.equal(result.args.sender, accounts[1]);
+        assert.equal(result.args.value.toNumber(), 9e16);
+        done();
+      });
+      web3.eth.sendTransaction({ from: accounts[1], to: proxy.address, value: 9e16 });
+    });
+  });
+
+  it("Receives transaction when deposit amount is equal to 0.1 ether", (done) => {
+    let proxy;
+    AccountProxy.new(accounts[0], accounts[1]).then((contract) => {
+      proxy = contract;
+      const event = proxy.Deposit();
+      // Encode the transaction to send to the proxy contract
+      event.watch((error, result) => {
+        event.stopWatching()
+        assert.equal(result.args.sender, accounts[1]);
+        assert.equal(result.args.value.toNumber(), 1e17);
+        done();
+      });
+      web3.eth.sendTransaction({ from: accounts[1], to: proxy.address, value: 1e17 });
+    });
+  });
+
+  it("Transaction fails when deposit amount greater than 0.1 ether", async () => {
+    const proxy = await AccountProxy.new(accounts[0], accounts[1]);
+    const proxyBalanceBefore = web3.eth.getBalance(proxy.address).toNumber();
+    try {
+      await web3.eth.sendTransaction({ from: accounts[1], to: proxy.address, value: 1e17 + 10 });
+      assert.fail('should have thrown before');
+    } catch (err) {
+      assertJump(err);
+      const proxyBalanceAfter = web3.eth.getBalance(proxy.address).toNumber();
+      assert.equal(proxyBalanceBefore, proxyBalanceAfter, 'proxy balance changed')
+    }
+  });
+
+  it("Transaction fails when deposit made after limit reached", async () => {
+    const proxy = await AccountProxy.new(accounts[0], accounts[1]);
+    await web3.eth.sendTransaction({ from: accounts[1], to: proxy.address, value: 1e17});
+    const proxyBalanceBefore = web3.eth.getBalance(proxy.address).toNumber();
+    try {
+      await web3.eth.sendTransaction({ from: accounts[1], to: proxy.address, value: 10 });
+      assert.fail('should have thrown before');
+    } catch (err) {
+      assertJump(err);
+      const proxyBalanceAfter = web3.eth.getBalance(proxy.address).toNumber();
+      assert.equal(proxyBalanceBefore, proxyBalanceAfter, 'proxy balance changed')
+    }
+  });
+
   it("Receives transaction", (done) => {
     let proxy;
     AccountProxy.new(accounts[0], accounts[1]).then((contract) => {
@@ -68,6 +127,7 @@ contract("AccountProxy", (accounts) => {
       web3.eth.sendTransaction({ from: accounts[1], to: proxy.address, value: 10000000000000000 });
     });
   });
+
 
   it("Non-owner can't send transaction", async () => {
     // Encode the transaction to send to the proxy contract
