@@ -4,17 +4,17 @@ contract AccountProxy {
 
   event Deposit(address indexed sender, uint value);
   event Withdrawal(address indexed to, uint value, bytes data);
-  
+
   // onwer of contract
   address owner;
   // this address can sign receipt to unlock account
   address lockAddr;
-  
+
   function AccountProxy(address _owner, address _lockAddr) {
     owner = _owner;
     lockAddr = _lockAddr;
   }
-  
+
   function isLocked() constant returns (bool) {
     return lockAddr != 0x0;
   }
@@ -39,7 +39,7 @@ contract AccountProxy {
   function transfer(address _newOwner) onlyOwner {
     owner = _newOwner;
   }
-  
+
   function forward(address _destination, uint _value, bytes _data) onlyOwner {
     if (_destination == 0) {
       assembly {
@@ -53,7 +53,7 @@ contract AccountProxy {
       }
     }
   }
-  
+
 
 
 
@@ -61,7 +61,7 @@ contract AccountProxy {
   // ############################################
   // ###########  ADMIN FUNCTIONS ###############
   // ############################################
-  
+
   function unlock(bytes32 _r, bytes32 _s, bytes32 _pl) {
     assert(lockAddr != 0x0);
     // parse receipt data
@@ -82,7 +82,7 @@ contract AccountProxy {
     owner = newOwner;
     lockAddr = 0x0;
   }
-  
+
 
 
 
@@ -90,7 +90,7 @@ contract AccountProxy {
   // ############################################
   // ########### PUBLIC FUNCTIONS ###############
   // ############################################
- 
+
   /**
    * Default function; is called when Ether is deposited.
    */
@@ -98,8 +98,7 @@ contract AccountProxy {
     // if locked, only allow 0.1 ETH max
     // Note this doesn't prevent other contracts to send funds by using selfdestruct(address);
     // See: https://github.com/ConsenSys/smart-contract-best-practices#remember-that-ether-can-be-forcibly-sent-to-an-account
-
-    assert(lockAddr == 0x0 || (this.balance + msg.value) <= 100000000000000000);
+    assert(lockAddr == 0x0 || this.balance <= 1e17);
     Deposit(msg.sender, msg.value);
   }
 
@@ -108,5 +107,5 @@ contract AccountProxy {
    */
   function tokenFallback(address _from, uint _value, bytes _data) {
   }
- 
+
 }
