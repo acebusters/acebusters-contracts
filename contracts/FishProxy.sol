@@ -1,16 +1,16 @@
 pragma solidity ^0.4.11;
 
-contract AccountProxy {
+contract FishProxy {
 
-  event Deposit(address indexed sender, uint value);
-  event Withdrawal(address indexed to, uint value, bytes data);
+  event Deposit(address indexed sender, uint256 value);
+  event Withdrawal(address indexed to, uint256 value, bytes data);
 
   // onwer of contract
   address owner;
   // this address can sign receipt to unlock account
   address lockAddr;
 
-  function AccountProxy(address _owner, address _lockAddr) {
+  function FishProxy(address _owner, address _lockAddr) {
     owner = _owner;
     lockAddr = _lockAddr;
   }
@@ -30,27 +30,28 @@ contract AccountProxy {
   // ###########  OWNER FUNCTIONS ###############
   // ############################################
 
+  /**
+   * @dev Throws if called by any account other than the owner.
+   */
   modifier onlyOwner() {
-    if (msg.sender == owner) {
-      _;
-    }
+    require(msg.sender == owner);
+    _;
   }
 
+  /**
+   * @dev Allows the current owner to transfer control of the contract to a newOwner.
+   * @param _newOwner The address to transfer ownership to.
+   */
   function transfer(address _newOwner) onlyOwner {
+    require(_newOwner != address(0)); 
     owner = _newOwner;
   }
 
-  function forward(address _destination, uint _value, bytes _data) onlyOwner {
-    if (_destination == 0) {
-      assembly {
-        // deploy a contract
-        _destination := create(0,add(_data,0x20), mload(_data))
-      }
-    } else {
-      assert(_destination.call.value(_value)(_data)); // send eth or data
-      if (_value > 0) {
-        Withdrawal(_destination, _value, _data);
-      }
+  function forward(address _destination, uint256 _value, bytes _data) onlyOwner {
+    require(_destination != address(0));
+    assert(_destination.call.value(_value)(_data)); // send eth and/or data
+    if (_value > 0) {
+      Withdrawal(_destination, _value, _data);
     }
   }
 
@@ -98,12 +99,12 @@ contract AccountProxy {
     // if locked, only allow 0.1 ETH max
     // Note this doesn't prevent other contracts to send funds by using selfdestruct(address);
     // See: https://github.com/ConsenSys/smart-contract-best-practices#remember-that-ether-can-be-forcibly-sent-to-an-account
-    assert(lockAddr == 0x0 || this.balance <= 1e17);
+    assert(lockAddr == address(0) || this.balance <= 1e17);
     Deposit(msg.sender, msg.value);
   }
 
   /**
-   * Default function; is called when ERC223 token is deposited.
+   * @dev is called when ERC223 token is deposited.
    */
   function tokenFallback(address _from, uint _value, bytes _data) {
   }
