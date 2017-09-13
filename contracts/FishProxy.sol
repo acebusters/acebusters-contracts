@@ -1,12 +1,9 @@
 pragma solidity ^0.4.11;
 
-contract FishProxy {
+import "./SharkProxy.sol";
 
-  event Deposit(address indexed sender, uint256 value);
-  event Withdrawal(address indexed to, uint256 value, bytes data);
+contract FishProxy is SharkProxy {
 
-  // onwer of contract
-  address owner;
   // this address can sign receipt to unlock account
   address lockAddr;
 
@@ -18,50 +15,6 @@ contract FishProxy {
   function isLocked() constant returns (bool) {
     return lockAddr != 0x0;
   }
-
-  function getOwner() constant returns (address) {
-    return owner;
-  }
-
-
-
-
-  // ############################################
-  // ###########  OWNER FUNCTIONS ###############
-  // ############################################
-
-  /**
-   * @dev Throws if called by any account other than the owner.
-   */
-  modifier onlyOwner() {
-    require(msg.sender == owner);
-    _;
-  }
-
-  /**
-   * @dev Allows the current owner to transfer control of the contract to a newOwner.
-   * @param _newOwner The address to transfer ownership to.
-   */
-  function transfer(address _newOwner) onlyOwner {
-    require(_newOwner != address(0)); 
-    owner = _newOwner;
-  }
-
-  function forward(address _destination, uint256 _value, bytes _data) onlyOwner {
-    require(_destination != address(0));
-    assert(_destination.call.value(_value)(_data)); // send eth and/or data
-    if (_value > 0) {
-      Withdrawal(_destination, _value, _data);
-    }
-  }
-
-
-
-
-
-  // ############################################
-  // ###########  ADMIN FUNCTIONS ###############
-  // ############################################
 
   function unlock(bytes32 _r, bytes32 _s, bytes32 _pl) {
     assert(lockAddr != 0x0);
@@ -84,14 +37,6 @@ contract FishProxy {
     lockAddr = 0x0;
   }
 
-
-
-
-
-  // ############################################
-  // ########### PUBLIC FUNCTIONS ###############
-  // ############################################
-
   /**
    * Default function; is called when Ether is deposited.
    */
@@ -101,12 +46,6 @@ contract FishProxy {
     // See: https://github.com/ConsenSys/smart-contract-best-practices#remember-that-ether-can-be-forcibly-sent-to-an-account
     assert(lockAddr == address(0) || this.balance <= 1e17);
     Deposit(msg.sender, msg.value);
-  }
-
-  /**
-   * @dev is called when ERC223 token is deposited.
-   */
-  function tokenFallback(address _from, uint _value, bytes _data) {
   }
 
 }
