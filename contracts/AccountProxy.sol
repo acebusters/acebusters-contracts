@@ -96,6 +96,9 @@ contract AccountProxy {
    */
   function() payable {
     // if locked, only allow 0.1 ETH max
+    // Note this doesn't prevent other contracts to send funds by using selfdestruct(address);
+    // See: https://github.com/ConsenSys/smart-contract-best-practices#remember-that-ether-can-be-forcibly-sent-to-an-account
+
     assert(lockAddr == 0x0 || (this.balance + msg.value) <= 100000000000000000);
     Deposit(msg.sender, msg.value);
   }
