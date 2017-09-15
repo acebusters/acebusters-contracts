@@ -1,10 +1,10 @@
 import { Receipt } from 'poker-helper';
 const NutzMock = artifacts.require("../contracts/ERC223BasicToken.sol");
-const AccountProxy = artifacts.require('../contracts/AccountProxy.sol');
+const FishProxy = artifacts.require('../contracts/FishProxy.sol');
 require('./helpers/transactionMined.js');
 const assertJump = require('./helpers/assertJump');
 
-contract("AccountProxy", (accounts) => {
+contract("FishProxy", (accounts) => {
   const amount = web3.toWei(0.09, 'ether');
 
   it("Owner can send transaction", async () => {
@@ -12,7 +12,7 @@ contract("AccountProxy", (accounts) => {
     // transfer(accounts[1], 1000)
     var data = `0xa9059cbb000000000000000000000000${accounts[1].replace('0x', '')}00000000000000000000000000000000000000000000000000000000000003e8`;
     // Send forward request from the owner
-    const proxy = await AccountProxy.new(accounts[0], accounts[1]);
+    const proxy = await FishProxy.new(accounts[0], accounts[1]);
     const token = await NutzMock.new();
     await token.transfer(proxy.address, 100000);
     await proxy.forward(token.address, 0, data, { from: accounts[0] });
@@ -22,7 +22,7 @@ contract("AccountProxy", (accounts) => {
 
   it("Basic forwarding test", async () => {
     // create proxy contract from my account
-    const proxy = await AccountProxy.new(accounts[0], accounts[1]);
+    const proxy = await FishProxy.new(accounts[0], accounts[1]);
     const token = await NutzMock.new();
     await token.transfer(proxy.address, 100000);
     // send 0.01 ether to proxy
@@ -41,7 +41,7 @@ contract("AccountProxy", (accounts) => {
     const LOCK_ADDR = '0x82e8c6cf42c8d1ff9594b17a3f50e94a12cc860f';
     const LOCK_PRIV = '0x94890218f2b0d04296f30aeafd13655eba4c5bbf1770273276fee52cbe3f2cb4';
     // create proxy contract
-    const proxy = await AccountProxy.new(accounts[0], LOCK_ADDR);
+    const proxy = await FishProxy.new(accounts[0], LOCK_ADDR);
     // check locked
     let isLocked = await proxy.isLocked.call();
     assert(isLocked);
@@ -55,7 +55,7 @@ contract("AccountProxy", (accounts) => {
 
   it("Receives transaction when deposit amount less than 0.1 ether", (done) => {
     let proxy;
-    AccountProxy.new(accounts[0], accounts[1]).then((contract) => {
+    FishProxy.new(accounts[0], accounts[1]).then((contract) => {
       proxy = contract;
       const event = proxy.Deposit();
       // Encode the transaction to send to the proxy contract
@@ -71,7 +71,7 @@ contract("AccountProxy", (accounts) => {
 
   it("Receives transaction when deposit amount is equal to 0.1 ether", (done) => {
     let proxy;
-    AccountProxy.new(accounts[0], accounts[1]).then((contract) => {
+    FishProxy.new(accounts[0], accounts[1]).then((contract) => {
       proxy = contract;
       const event = proxy.Deposit();
       // Encode the transaction to send to the proxy contract
@@ -86,7 +86,7 @@ contract("AccountProxy", (accounts) => {
   });
 
   it("Transaction fails when deposit amount greater than 0.1 ether", async () => {
-    const proxy = await AccountProxy.new(accounts[0], accounts[1]);
+    const proxy = await FishProxy.new(accounts[0], accounts[1]);
     const proxyBalanceBefore = web3.eth.getBalance(proxy.address).toNumber();
     try {
       await web3.eth.sendTransaction({ from: accounts[1], to: proxy.address, value: 1e17 + 10 });
@@ -99,7 +99,7 @@ contract("AccountProxy", (accounts) => {
   });
 
   it("Transaction fails when deposit made after limit reached", async () => {
-    const proxy = await AccountProxy.new(accounts[0], accounts[1]);
+    const proxy = await FishProxy.new(accounts[0], accounts[1]);
     await web3.eth.sendTransaction({ from: accounts[1], to: proxy.address, value: 1e17});
     const proxyBalanceBefore = web3.eth.getBalance(proxy.address).toNumber();
     try {
@@ -114,7 +114,7 @@ contract("AccountProxy", (accounts) => {
 
   it("Receives transaction", (done) => {
     let proxy;
-    AccountProxy.new(accounts[0], accounts[1]).then((contract) => {
+    FishProxy.new(accounts[0], accounts[1]).then((contract) => {
       proxy = contract;
       const event = proxy.Deposit();
       // Encode the transaction to send to the proxy contract
@@ -134,19 +134,25 @@ contract("AccountProxy", (accounts) => {
     // transfer(accounts[1], 1000)
     var data = `0xa9059cbb000000000000000000000000${accounts[1].replace('0x', '')}00000000000000000000000000000000000000000000000000000000000003e8`;
     // Send forward request from a non-owner
-    const proxy = await AccountProxy.new();
+    const proxy = await FishProxy.new(accounts[0], accounts[1]);
     const token = await NutzMock.new();
     await token.transfer(proxy.address, 3000);
-    await proxy.forward(token.address, 0, data, { from: accounts[1] });
-    const bal = await token.balanceOf.call(proxy.address);
-    assert.equal(bal.toNumber(), 3000);
+    try {
+      await proxy.forward(token.address, 0, data, { from: accounts[1] });
+      assert.fail('should have thrown before');
+    } catch (err) {
+      assertJump(err);
+    }
   });
 
   it("Should throw if function call fails", async () => {
-    const proxy = await AccountProxy.new();
+    const proxy = await FishProxy.new(accounts[0], accounts[1]);
     const token = await NutzMock.new(accounts[0], 0);
     try {
-      await proxy.forward(token.address, 0, '0x50bff6bf', { from: accounts[0] });
+      // transfer(accounts[1], 1000)
+      var data = `0xa9059cbb000000000000000000000000${accounts[1].replace('0x', '')}00000000000000000000000000000000000000000000000000000000000003e8`;
+      await proxy.forward(token.address, 0, data, { from: accounts[0] });
+      assert.fail('should have thrown before');
     } catch (err) {
       assertJump(err);
     }
