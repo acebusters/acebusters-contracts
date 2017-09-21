@@ -1,10 +1,10 @@
 pragma solidity ^0.4.11;
 
 import "./Table.sol";
-import "./Owned.sol";
+import "../node_modules/zeppelin-solidity/contracts/ownership/Ownable.sol";
 import "./Governable.sol";
 
-contract TableFactory is Owned, Governable {
+contract TableFactory is Ownable, Governable {
 
   address public tokenAddress;
   address public oracleAddress;
