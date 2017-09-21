@@ -1,16 +1,16 @@
 pragma solidity ^0.4.11;
 
 import "./Table.sol";
-import "./Owned.sol";
+import "../node_modules/zeppelin-solidity/contracts/ownership/Ownable.sol";
 
-contract TableFactory is Owned {
+contract TableFactory is Ownable {
 
   address public tokenAddress;
   address public oracleAddress;
   uint256 public disputeTime;
-    
+
   address[] public tables;
-  
+
   function getTables() constant returns (address[]) {
     uint activeCount = 0;
     for (uint i = 0; i < tables.length; i++ ) {
@@ -28,7 +28,7 @@ contract TableFactory is Owned {
     }
     return rv;
   }
-  
+
   function configure(address _token, address _oracle, uint256 _disputeTime) onlyOwner {
     assert(_token != 0x0 && _oracle != 0x0);
     tokenAddress = _token;
