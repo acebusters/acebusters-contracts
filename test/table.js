@@ -176,7 +176,7 @@ contract('Table', function(accounts) {
     const writeCount = await table.submit.call(hands);
     assert.equal(writeCount.toNumber(), 6, 'not all receipt recognized');
     await table.submit(hands);
-    
+
     // check hand 5 and 6
     inVal = await table.getIn.call(5, '0x' + P0_ADDR);
     assert.equal(inVal.toNumber(), 200000000000000, 'bet submission failed.');
@@ -211,6 +211,27 @@ contract('Table', function(accounts) {
 
     seat = await table.seats.call(1);
     assert.equal(seat[1].toNumber(), 0, 'payout failed.');
+  });
+
+  describe('#leave()', () => {
+    it('should fail if player is already leaving', async() => {
+      const token = await Token.new();
+      const table = await Table.new(token.address, ORACLE, babz(20), 2, 0);
+
+      await token.transfer(accounts[1], babz(1000));
+      await token.transData(table.address, babz(1000), '0x00' + P0_ADDR);
+      await token.transData(table.address, babz(1000), '0x01' + P1_ADDR, {from: accounts[1]});
+
+      // make leave receipt
+      let leaveReceipt = new Receipt(table.address).leave(6, P1_ADDR).sign(ORACLE_PRIV);
+      await table.leave(...Receipt.parseToParams(leaveReceipt));
+
+      try {
+        await table.leave(...Receipt.parseToParams(leaveReceipt));
+      } catch (err) {
+        assertJump(err);
+      }
+    });
   });
 
   it('should not accept distributions that spend more than bets.');
