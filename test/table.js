@@ -20,6 +20,21 @@ contract('Table', function(accounts) {
 
   const P_EMPTY = '0x0000000000000000000000000000000000000000';
 
+  async function join(args) {
+    const { table, pos, signerAddr, token, amount, opts } = args;
+
+    await token.transData(table.address, 100000000000000, '0x0' + pos + signerAddr, opts);
+    assert((await table.seats.call(pos))[2] == '0x' + signerAddr, 'join failed.');
+  };
+
+  async function leave(args) {
+    const { table, handId, pos, signerAddr } = args;
+
+    const leaveReceipt = new Receipt(table.address).leave(handId, signerAddr).sign(ORACLE_PRIV);
+    await table.leave(...Receipt.parseToParams(leaveReceipt));
+    assert((await table.seats.call(pos))[3] == handId, 'leave request failed.');
+  };
+
   it("should join table, then settle, then leave.", async () => {
     const token = await Token.new();
     const table = await Table.new(token.address, ORACLE, 2000000000000, 2, 0);
@@ -73,6 +88,28 @@ contract('Table', function(accounts) {
       assertJump(err);
     }
     assert(false, 'should have thrown');
+  });
+
+  it("should not allow settle empty seat", async () => {
+    const token = await Token.new();
+    const table = await Table.new(token.address, ORACLE, babz(2), 2, 0);
+
+    // set in just one player
+    await join({ table, pos: 0, signerAddr: P0_ADDR, token, amount: babz(100) });
+
+    // create the leave receipt here.
+    await leave({ table, handId: 3, pos: 0, signerAddr: P0_ADDR });
+
+    // create the settle receipt for two players here.
+    // we expect settle to throw when trying to change balance for empty seat
+    const settleReceipt = new Receipt(table.address).settle(1, 3, [babz(-12), babz(10)]).sign(ORACLE_PRIV);
+
+    try {
+      await table.settle(...Receipt.parseToParams(settleReceipt));
+      assert.fail('should have thrown');
+    } catch (err) {
+      assertJump(err);
+    }
   });
 
   it("should join table, then settle, then leave broke.", async () => {
@@ -176,7 +213,7 @@ contract('Table', function(accounts) {
     const writeCount = await table.submit.call(hands);
     assert.equal(writeCount.toNumber(), 6, 'not all receipt recognized');
     await table.submit(hands);
-    
+
     // check hand 5 and 6
     inVal = await table.getIn.call(5, '0x' + P0_ADDR);
     assert.equal(inVal.toNumber(), 200000000000000, 'bet submission failed.');
