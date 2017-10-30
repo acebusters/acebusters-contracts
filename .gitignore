@@ -5,3 +5,12 @@ environments/
 *.sol.js
 environments/
 .idea
+
+# test
+xunit_testresults.xml
+
+# test coverage
+scTopics
+coverage/
+coverageEnv/
+coverage.json
