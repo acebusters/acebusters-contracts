@@ -31,6 +31,14 @@ contract SharkProxy is Ownable {
   }
 
   /**
+   * @dev _addr is address for the nutz satelite
+   */
+  function purchase(address _addr) payable {
+    bytes memory empty;
+    forward(_addr, msg.value, empty);
+  }
+
+  /**
    * @dev is called when ERC223 token is deposited.
    */
   function tokenFallback(address _from, uint _value, bytes _data) {
