@@ -51,7 +51,7 @@ contract FishProxy is SharkProxy {
   /**
    * @dev _addr is address for the nutz satelite
    */
-  function purchase(address _addr) payable {
+  function purchase(address _addr) payable onlyOwner {
     // allow 1 tx purchase only if unlocked
     assert(lockAddr == address(0));
     bytes memory empty;

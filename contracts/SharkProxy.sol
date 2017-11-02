@@ -33,7 +33,7 @@ contract SharkProxy is Ownable {
   /**
    * @dev _addr is address for the nutz satelite
    */
-  function purchase(address _addr) payable {
+  function purchase(address _addr) payable onlyOwner {
     bytes memory empty;
     forward(_addr, msg.value, empty);
   }
