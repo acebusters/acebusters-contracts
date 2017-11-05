@@ -2,15 +2,16 @@ pragma solidity ^0.4.11;
 
 import "./Table.sol";
 import "./Owned.sol";
+import "./Governable.sol";
 
-contract TableFactory is Owned {
+contract TableFactory is Owned, Governable {
 
   address public tokenAddress;
   address public oracleAddress;
   uint256 public disputeTime;
-    
+
   address[] public tables;
-  
+
   function getTables() constant returns (address[]) {
     uint activeCount = 0;
     for (uint i = 0; i < tables.length; i++ ) {
@@ -28,7 +29,7 @@ contract TableFactory is Owned {
     }
     return rv;
   }
-  
+
   function configure(address _token, address _oracle, uint256 _disputeTime) onlyOwner {
     assert(_token != 0x0 && _oracle != 0x0);
     tokenAddress = _token;
@@ -36,7 +37,7 @@ contract TableFactory is Owned {
     disputeTime = _disputeTime;
   }
 
-  function create(uint96 _smallBlind, uint _seats) onlyOwner returns (address) {
+  function create(uint96 _smallBlind, uint _seats) onlyAdmins returns (address) {
     assert(_smallBlind != 0 && tokenAddress != 0x0 && oracleAddress != 0x0);
     assert(2 <= _seats && _seats <= 10);
     address table = new Table(tokenAddress, oracleAddress, _smallBlind, _seats, disputeTime);
