@@ -1,5 +1,6 @@
 require('babel-register');
 require('babel-polyfill');
+var HDWalletProvider = require("truffle-hdwallet-provider");
 
 var mochaConfig = {};
 
@@ -31,6 +32,12 @@ module.exports = {
       gas: 4500000,
       // uncomment and insert the address of your geth unlocked account if your first account is locked
       //from: "0xb938282d54aa89fceb0bafa59e122fbc9ad82385"
+    },
+    mainnet: {
+      provider: function() {
+        return new HDWalletProvider(process.env.MNEMONIC || "", "https://mainnet.infura.io:443", process.env.ACCOUNT_INDEX || 0);
+      },
+      network_id: "*"
     },
     coverage: {
       host: "localhost",
