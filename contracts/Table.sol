@@ -15,9 +15,9 @@ contract Table {
   uint256 sb;
   address public tokenAddr;
   uint256 jozDecimals = 1000000000;
-  
+
   bool public active = true;
-  
+
   struct Hand {
     //in
     mapping (address => uint256) ins;
@@ -32,16 +32,16 @@ contract Table {
     address signerAddr;
     uint256 exitHand;
   }
-  
+
   Hand[] public hands;
   Seat[] public seats;
 
   uint32 public lastHandNetted;
-  
+
   uint32 public lastNettingRequestHandId;
   uint256 public lastNettingRequestTime;
   uint256 disputeTime;
-  
+
   function Table(address _token, address _oracle, uint256 _smallBlind, uint256 _seats, uint256 _disputeTime) {
     tokenAddr = _token;
     oracle = _oracle;
@@ -56,7 +56,7 @@ contract Table {
   function smallBlind() constant returns (uint256) {
     return sb;
   }
-  
+
   function getLineup() constant returns (uint256, address[] addresses, uint256[] amounts, uint256[] exitHands) {
     addresses = new address[](seats.length);
     amounts = new uint256[](seats.length);
@@ -68,11 +68,11 @@ contract Table {
     }
     return (lastHandNetted, addresses, amounts, exitHands);
   }
-  
+
   function getIn(uint256 _handId, address _addr) constant returns (uint256) {
     return hands[_handId].ins[_addr];
   }
-  
+
   function getOut(uint256 _handId, address _addr) constant returns (uint256, uint) {
     return (hands[_handId].outs[_addr], hands[_handId].claimCount);
   }
@@ -88,7 +88,7 @@ contract Table {
     }
     return false;
   }
-  
+
   function toggleActive(bytes _toggleReceipt) {
     uint32 handId;
     address dest;
@@ -109,7 +109,7 @@ contract Table {
 
     active = !active;
   }
-  
+
   // Join
   function tokenFallback(address _from, uint256 _value, bytes _data) {
     assert(msg.sender == tokenAddr);
@@ -150,7 +150,7 @@ contract Table {
     }
     Join(_from, _value);
   }
-  
+
   function leave(bytes32 _r, bytes32 _s, bytes32 _pl) {
     uint8 v;
     uint56 dest;
@@ -164,7 +164,7 @@ contract Table {
       signer := calldataload(68)
     }
     assert(dest == uint56(address(this)));
-    
+
     assert(ecrecover(sha3(uint8(0), dest, handId, signer), v, _r, _s) == oracle);
 
     uint256 pos = seats.length;
@@ -217,6 +217,7 @@ contract Table {
       assembly {
         diff := calldataload(add(14, mul(i, 6)))
       }
+      assert(diff == 0 || seats[i].signerAddr != 0x0);
       seats[i].amount = uint256(int256(seats[i].amount) + (int256(jozDecimals) * diff));
       sumOfSeatBalances += seats[i].amount;
     }
@@ -299,7 +300,7 @@ contract Table {
       Seat storage seat = seats[j];
       for (uint256 i = lastHandNetted + 1; i <= lastNettingRequestHandId; i++ ) {
         seat.amount = seat.amount.add(hands[i].outs[seat.signerAddr]).sub(hands[i].ins[seat.signerAddr]);
-        
+
       }
       sumOfSeatBalances = sumOfSeatBalances.add(seat.amount);
     }
