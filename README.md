@@ -30,6 +30,5 @@ We use remote Infura node to connect to mainnet, thus you have to provide mnemon
 
 Then use `mainnet` network for your truffle commands. E.g. `truffle console --network mainnet`
 
-
 ## License
 Code released under the [MIT License](https://github.com/acebusters/contracts/blob/master/LICENSE).
