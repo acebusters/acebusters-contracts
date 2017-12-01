@@ -29,12 +29,14 @@ module.exports = {
       provider: function() {
         return new HDWalletProvider(process.env.RINKEBY_MNEMONIC || "", "https://rinkeby.infura.io", process.env.RINKEBY_ACCOUNT_INDEX || 0);
       },
+      gasPrice: 0x50,
       network_id: 4
     },
     mainnet: {
       provider: function() {
         return new HDWalletProvider(process.env.MAINNET_MNEMONIC || "", "https://mainnet.infura.io:443", process.env.MAINNET_ACCOUNT_INDEX || 0);
       },
+      gasPrice: 0x01,
       network_id: "*"
     },
     coverage: {
