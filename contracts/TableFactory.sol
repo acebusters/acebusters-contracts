@@ -1,10 +1,9 @@
 pragma solidity ^0.4.11;
 
 import "./Table.sol";
-import "../node_modules/zeppelin-solidity/contracts/ownership/Ownable.sol";
 import "./Governable.sol";
 
-contract TableFactory is Ownable, Governable {
+contract TableFactory is Governable {
 
   address public tokenAddress;
   address public oracleAddress;
@@ -30,7 +29,7 @@ contract TableFactory is Ownable, Governable {
     return rv;
   }
 
-  function configure(address _token, address _oracle, uint256 _disputeTime) onlyOwner {
+  function configure(address _token, address _oracle, uint256 _disputeTime) onlyAdmins {
     assert(_token != 0x0 && _oracle != 0x0);
     tokenAddress = _token;
     oracleAddress = _oracle;
