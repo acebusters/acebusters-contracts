@@ -1,9 +1,10 @@
 pragma solidity ^0.4.11;
 
 import './ERC20Basic.sol';
+import './Ownable.sol';
 import './SafeMath.sol';
 
-contract SnGTable {
+contract SnGTable is Ownable {
   using SafeMath for uint;
 
   event Join(address indexed addr, uint256 amount);
@@ -11,12 +12,14 @@ contract SnGTable {
   event Netted(uint256 hand);
   event Leave(address addr);
 
-  enum TableState { CoolOff, Registration, Tournament, Payout }
+  enum TableState { CoolOff, Registration, Tournament}
   TableState public state;
 
   address public oracle;
   uint256 sb;
-  uint256 coolOffPeriod;
+  uint256 public restartTime;
+  uint256 public coolOffPeriod;
+  uint256 public registrationPeriod;
   address public tokenAddr;
   uint256 jozDecimals = 1000000000;
 
@@ -44,9 +47,10 @@ contract SnGTable {
 
   uint32 public lastNettingRequestHandId;
   uint256 public lastNettingRequestTime;
+  uint8 internal totalPlayers;
   uint256 disputeTime;
 
-  function SnGTable(address _oracle, uint256 _smallBlind, uint256 _seats, uint256 _disputeTime) {
+  function SnGTable(address _oracle, uint256 _smallBlind, uint256 _seats, uint256 _disputeTime, uint256 _coolOffPeriod, uint256 _registrationPeriod) {
     oracle = _oracle;
     sb = _smallBlind;
     seats.length = _seats;
@@ -54,6 +58,10 @@ contract SnGTable {
     lastNettingRequestHandId = 1;
     lastNettingRequestTime = now;
     disputeTime = _disputeTime;
+    coolOffPeriod = _coolOffPeriod;
+    registrationPeriod = _registrationPeriod;
+    restartTime = now;
+    state = TableState.CoolOff;
   }
 
   modifier isState(TableState _state) {
@@ -61,31 +69,49 @@ contract SnGTable {
     _;
   }
 
+  function tick() public {
+    var (, , , , activePlayers) = getLineup();
+    if (state == TableState.CoolOff && now >= restartTime.add(coolOffPeriod)) {
+      state = TableState.Registration;
+    } else if (state == TableState.Registration && now >= restartTime.add(coolOffPeriod).add(registrationPeriod) && activePlayers >= 6) {
+      state = TableState.Tournament;
+    } else if (state == TableState.Tournament && activePlayers == 0) {
+      state = TableState.CoolOff;
+      restartTime = now;
+    } else {
+      revert();
+    }
+  }
+
   function smallBlind() constant returns (uint256) {
     return sb;
   }
 
-  function getLineup() constant returns (uint256, address[] addresses, uint256[] amounts, uint256[] exitHands) {
+  function getLineup() constant returns (uint256, address[] addresses, uint256[] amounts, uint256[] exitHands, uint8 activePlayers) {
     addresses = new address[](seats.length);
     amounts = new uint256[](seats.length);
     exitHands = new uint256[](seats.length);
+    activePlayers = 0;
     for (uint256 i = 0; i < seats.length; i++) {
         addresses[i] = seats[i].signerAddr;
         amounts[i] = seats[i].amount;
         exitHands[i] = seats[i].exitHand;
+        if (amounts[i] != 0) {
+          activePlayers++ ;
+        }
     }
-    return (lastHandNetted, addresses, amounts, exitHands);
+    return (lastHandNetted, addresses, amounts, exitHands, activePlayers);
   }
 
-  function getIn(uint256 _handId, address _addr) constant returns (uint256) {
+  function getIn(uint256 _handId, address _addr) constant isState(TableState.Tournament) returns (uint256) {
     return hands[_handId].ins[_addr];
   }
 
-  function getOut(uint256 _handId, address _addr) constant returns (uint256, uint) {
+  function getOut(uint256 _handId, address _addr) constant isState(TableState.Tournament) returns (uint256, uint) {
     return (hands[_handId].outs[_addr], hands[_handId].claimCount);
   }
 
-  function inLineup(address _addr) constant returns (bool) {
+  function inLineup(address _addr) constant isState(TableState.Tournament) returns (bool) {
     for (uint256 i = 0; i < seats.length; i++) {
       if (seats[i].signerAddr == _addr || seats[i].senderAddr == _addr) {
         return true;
@@ -111,17 +137,17 @@ contract SnGTable {
       s := mload(add(_toggleReceipt, 88))
       v := mload(add(_toggleReceipt, 89))
     }
-    assert(dest == address(this));
-    assert(lastHandNetted == handId);
-    assert(ecrecover(sha3(handId, dest), v, r, s) == oracle);
+    require(dest == address(this));
+    require(lastHandNetted == handId);
+    require(ecrecover(sha3(handId, dest), v, r, s) == oracle);
 
     active = !active;
   }
 
   // Join
-  function join (bytes _data) public payable {
+  function join (bytes _data) public isState(TableState.Registration) payable {
     // check the dough
-    assert(40 * sb <= msg.value && msg.value <= 400 * sb);
+    require(40 * sb <= msg.value && msg.value <= 400 * sb);
 
     uint8 pos;
     address signerAddr;
@@ -129,22 +155,22 @@ contract SnGTable {
       pos := mload(add(_data, 1))
       signerAddr := mload(add(_data, 21))
     }
-    assert(signerAddr != 0x0);
+    require(signerAddr != 0x0);
 
     bool rebuy = false;
     // avoid player joining multiple times
     for (uint256 i = 0; i < seats.length; i++ ) {
       if (seats[i].senderAddr == msg.sender) {
-        assert(pos == i);
+        require(pos == i);
         rebuy = true;
       }
     }
 
     if (rebuy) {
       // check the dough
-      assert(msg.value + seats[pos].amount <= sb.mul(400));
+      require(msg.value + seats[pos].amount <= sb.mul(400));
       // check exit hand
-      assert(seats[pos].exitHand == 0);
+      require(seats[pos].exitHand == 0);
       seats[pos].amount += msg.value;
     } else {
       if (pos >=seats.length || seats[pos].amount > 0 || seats[pos].senderAddr != 0) {
@@ -170,9 +196,9 @@ contract SnGTable {
       handId := calldataload(48)
       signer := calldataload(68)
     }
-    assert(dest == uint56(address(this)));
+    require(dest == uint56(address(this)));
 
-    assert(ecrecover(sha3(uint8(0), dest, handId, signer), v, _r, _s) == oracle);
+    require(ecrecover(sha3(uint8(0), dest, handId, signer), v, _r, _s) == oracle);
 
     uint256 pos = seats.length;
     for (uint256 i = 0; i < seats.length; i++) {
@@ -180,10 +206,11 @@ contract SnGTable {
         pos = i;
       }
     }
-    assert(pos < seats.length);
-    assert(seats[pos].exitHand == 0);
+    require(pos < seats.length);
+    require(seats[pos].exitHand == 0);
     seats[pos].exitHand = handId;
     // create new netting request
+
     if (lastHandNetted < handId) {
       if (lastNettingRequestHandId < handId) {
         NettingRequest(handId);
@@ -197,14 +224,14 @@ contract SnGTable {
 
   // This function is called if all players agree to settle without dispute.
   // A list of changes to all balances is signed by all active players and submited.
-  function settle(bytes _sigs, bytes32 _newBal1, bytes32 _newBal2) {
+  function settle(bytes _sigs, bytes32 _newBal1, bytes32 _newBal2) isState(TableState.Tournament) {
     // TODO: keeping track of who has signed,
     uint8 handsNetted = uint8(_newBal1 >> 232);
-    assert(handsNetted > 0);
+    require(handsNetted > 0);
 
     // handId byte
-    assert(uint8(_newBal1 >> 224) == uint8(lastHandNetted));
-    assert(uint8(_newBal1 >> 240) == uint8(address(this)));
+    require(uint8(_newBal1 >> 224) == uint8(lastHandNetted));
+    require(uint8(_newBal1 >> 240) == uint8(address(this)));
 
     for (uint256 i = 0; i < _sigs.length / 65; i++) {
       uint8 v;
@@ -215,7 +242,7 @@ contract SnGTable {
         r := mload(add(_sigs, add(33, mul(i, 65))))
         s := mload(add(_sigs, add(65, mul(i, 65))))
       }
-      assert(inLineup(ecrecover(sha3(_newBal1, _newBal2), v, r, s)));
+      require(inLineup(ecrecover(sha3(_newBal1, _newBal2), v, r, s)));
     }
 
     uint256 sumOfSeatBalances = 0;
@@ -253,14 +280,14 @@ contract SnGTable {
         t := calldataload(add(f, 13))
         rest := calldataload(add(f, 37))
       }
-      assert(dest == uint24(address(this)));
+      require(dest == uint24(address(this)));
       if (hands.length <= lastNettingRequestHandId) {
         hands.length = lastNettingRequestHandId + 1;
       }
       // the receipt is a distribution
       if (t == 21) {
         signer = ecrecover(sha3(uint8(0), rest, _data[next+3]), v, _data[next], _data[next+1]);
-        assert(signer == oracle && handId < hands.length);
+        require(signer == oracle && handId < hands.length);
         assembly {
           v := mul(add(next, 3), 32)
           t := calldataload(add(v, 14))
@@ -283,8 +310,8 @@ contract SnGTable {
       // the receipt is a bet/check/fold
       } else {
         signer = ecrecover(sha3(uint8(0), rest), v, _data[next], _data[next+1]);
-        assert(inLineup(signer));
-        assert(lastHandNetted < handId  && handId < hands.length);
+        require(inLineup(signer));
+        require(lastHandNetted < handId  && handId < hands.length);
         assembly {
           amount := calldataload(add(mul(add(next, 3), 32), 19))
         }
@@ -299,8 +326,8 @@ contract SnGTable {
   }
 
 
-  function net() {
-    assert(now  >= lastNettingRequestTime + disputeTime);
+  function net() isState(TableState.Tournament) {
+    require(now  >= lastNettingRequestTime + disputeTime);
     uint256 sumOfSeatBalances = 0;
     for (uint256 j = 0; j < seats.length; j++) {
       Seat storage seat = seats[j];
@@ -333,4 +360,7 @@ contract SnGTable {
     }
   }
 
+  function kill(address _dest) public onlyOwner {
+    selfdestruct(_dest);
+  }
 }
