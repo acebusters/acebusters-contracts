@@ -1,6 +1,5 @@
 pragma solidity ^0.4.11;
 
-import './ERC20Basic.sol';
 import './Ownable.sol';
 import './SafeMath.sol';
 
@@ -16,22 +15,14 @@ contract SnGTable is Ownable {
   TableState public state;
 
   address public oracle;
-  uint256 sb;
+  uint256 internal mbi;
   uint256 public restartTime;
   uint256 public coolOffPeriod;
   uint256 public registrationPeriod;
   address public tokenAddr;
-  uint256 jozDecimals = 1000000000;
+  uint256 roundingFactor = 1000000000;
 
   bool public active = true;
-
-  struct Hand {
-    //in
-    mapping (address => uint256) ins;
-    //out
-    uint256 claimCount;
-    mapping (address => uint256) outs;
-  }
 
   struct Seat {
     address senderAddr;
@@ -40,19 +31,17 @@ contract SnGTable is Ownable {
     uint256 exitHand;
   }
 
-  Hand[] public hands;
   Seat[] public seats;
 
   uint32 public lastHandNetted;
 
   uint32 public lastNettingRequestHandId;
   uint256 public lastNettingRequestTime;
-  uint8 internal totalPlayers;
   uint256 disputeTime;
 
-  function SnGTable(address _oracle, uint256 _smallBlind, uint256 _seats, uint256 _disputeTime, uint256 _coolOffPeriod, uint256 _registrationPeriod) {
+  function SnGTable(address _oracle, uint256 _mbi, uint256 _seats, uint256 _disputeTime, uint256 _coolOffPeriod, uint256 _registrationPeriod) {
     oracle = _oracle;
-    sb = _smallBlind;
+    mbi = _mbi;
     seats.length = _seats;
     lastHandNetted = 1;
     lastNettingRequestHandId = 1;
@@ -69,8 +58,13 @@ contract SnGTable is Ownable {
     _;
   }
 
+  // onlyOwner function
+  function kill(address _dest) public onlyOwner {
+    selfdestruct(_dest);
+  }
+
   function tick() public {
-    var (, , , , activePlayers) = getLineup();
+    var (, , , , activePlayers) = _getLineup();
     if (state == TableState.CoolOff && now >= restartTime.add(coolOffPeriod)) {
       state = TableState.Registration;
     } else if (state == TableState.Registration && now >= restartTime.add(coolOffPeriod).add(registrationPeriod) && activePlayers >= 6) {
@@ -83,71 +77,22 @@ contract SnGTable is Ownable {
     }
   }
 
-  function smallBlind() constant returns (uint256) {
-    return sb;
+  function minBuyIn() constant returns (uint256) {
+    return mbi;
   }
 
-  function getLineup() constant returns (uint256, address[] addresses, uint256[] amounts, uint256[] exitHands, uint8 activePlayers) {
-    addresses = new address[](seats.length);
-    amounts = new uint256[](seats.length);
-    exitHands = new uint256[](seats.length);
-    activePlayers = 0;
-    for (uint256 i = 0; i < seats.length; i++) {
-        addresses[i] = seats[i].signerAddr;
-        amounts[i] = seats[i].amount;
-        exitHands[i] = seats[i].exitHand;
-        if (amounts[i] != 0) {
-          activePlayers++ ;
-        }
-    }
-    return (lastHandNetted, addresses, amounts, exitHands, activePlayers);
+  function getLineup() public constant isState(TableState.Tournament) returns (uint256, address[] addresses, uint256[] amounts, uint256[] exitHands, uint8 activePlayers) {
+    return _getLineup();
   }
 
-  function getIn(uint256 _handId, address _addr) constant isState(TableState.Tournament) returns (uint256) {
-    return hands[_handId].ins[_addr];
-  }
-
-  function getOut(uint256 _handId, address _addr) constant isState(TableState.Tournament) returns (uint256, uint) {
-    return (hands[_handId].outs[_addr], hands[_handId].claimCount);
-  }
-
-  function inLineup(address _addr) constant isState(TableState.Tournament) returns (bool) {
-    for (uint256 i = 0; i < seats.length; i++) {
-      if (seats[i].signerAddr == _addr || seats[i].senderAddr == _addr) {
-        return true;
-      }
-    }
-    if (_addr == oracle) {
-      return true;
-    }
-    return false;
-  }
-
-  function toggleActive(bytes _toggleReceipt) {
-    uint32 handId;
-    address dest;
-    bytes32 r;
-    bytes32 s;
-    uint8 v;
-
-    assembly {
-      handId := mload(add(_toggleReceipt, 4))
-      dest := mload(add(_toggleReceipt, 24))
-      r := mload(add(_toggleReceipt, 56))
-      s := mload(add(_toggleReceipt, 88))
-      v := mload(add(_toggleReceipt, 89))
-    }
-    require(dest == address(this));
-    require(lastHandNetted == handId);
-    require(ecrecover(sha3(handId, dest), v, r, s) == oracle);
-
-    active = !active;
+  function inLineup(address _addr) public constant isState(TableState.Tournament) returns (bool) {
+    return _inLineup(_addr);
   }
 
   // Join
   function join (bytes _data) public isState(TableState.Registration) payable {
-    // check the dough
-    require(40 * sb <= msg.value && msg.value <= 400 * sb);
+    // check the minBuyIn
+    require(mbi <= msg.value);
 
     uint8 pos;
     address signerAddr;
@@ -157,30 +102,12 @@ contract SnGTable is Ownable {
     }
     require(signerAddr != 0x0);
 
-    bool rebuy = false;
-    // avoid player joining multiple times
-    for (uint256 i = 0; i < seats.length; i++ ) {
-      if (seats[i].senderAddr == msg.sender) {
-        require(pos == i);
-        rebuy = true;
-      }
-    }
+    if (pos >=seats.length || seats[pos].amount > 0 || seats[pos].senderAddr != 0 || _inLineup(msg.sender)) revert();
+    //seat player
+    seats[pos].senderAddr = msg.sender;
+    seats[pos].amount = msg.value;
+    seats[pos].signerAddr = signerAddr;
 
-    if (rebuy) {
-      // check the dough
-      require(msg.value + seats[pos].amount <= sb.mul(400));
-      // check exit hand
-      require(seats[pos].exitHand == 0);
-      seats[pos].amount += msg.value;
-    } else {
-      if (pos >=seats.length || seats[pos].amount > 0 || seats[pos].senderAddr != 0) {
-        revert();
-      }
-      //seat player
-      seats[pos].senderAddr = msg.sender;
-      seats[pos].amount = msg.value;
-      seats[pos].signerAddr = signerAddr;
-    }
     Join(msg.sender, msg.value);
   }
 
@@ -251,93 +178,11 @@ contract SnGTable is Ownable {
       assembly {
         diff := calldataload(add(14, mul(i, 6)))
       }
-      seats[i].amount = uint256(int256(seats[i].amount) + (int256(jozDecimals) * diff));
+      seats[i].amount = uint256(int256(seats[i].amount) + (int256(roundingFactor) * diff));
       sumOfSeatBalances += seats[i].amount;
     }
 
     lastHandNetted += handsNetted;
-    Netted(lastHandNetted);
-    _payout(sumOfSeatBalances);
-  }
-
-  function submit(bytes32[] _data) returns (uint writeCount) {
-    uint256 next = 0;
-    writeCount = 0;
-
-    while (next + 3 <= _data.length) {
-      uint8 v;
-      uint24 dest;
-      uint32 handId;
-      uint8 t;        // type of receipt
-      bytes31 rest;
-      uint48 amount;
-      address signer;
-      assembly {
-        let f := mul(add(next, 3), 32)
-        v := calldataload(add(f, 5))
-        dest := calldataload(add(f, 8))
-        handId := calldataload(add(f, 12))
-        t := calldataload(add(f, 13))
-        rest := calldataload(add(f, 37))
-      }
-      require(dest == uint24(address(this)));
-      if (hands.length <= lastNettingRequestHandId) {
-        hands.length = lastNettingRequestHandId + 1;
-      }
-      // the receipt is a distribution
-      if (t == 21) {
-        signer = ecrecover(sha3(uint8(0), rest, _data[next+3]), v, _data[next], _data[next+1]);
-        require(signer == oracle && handId < hands.length);
-        assembly {
-          v := mul(add(next, 3), 32)
-          t := calldataload(add(v, 14))
-        }
-        if (t > hands[handId].claimCount || hands[handId].claimCount == 0) {
-          hands[handId].claimCount = t;
-          for (dest = 0; dest < 7; dest++) {
-            assembly {
-              t := calldataload(add(v, add(mul(dest, 7), 16)))
-              amount := calldataload(add(v, add(mul(dest, 7), 22)))
-            }
-            if (amount == 0) {
-                break;
-            }
-            hands[handId].outs[seats[t].signerAddr] = jozDecimals.mul(amount);
-            writeCount++;
-          }
-        }
-        next = next + 4;
-      // the receipt is a bet/check/fold
-      } else {
-        signer = ecrecover(sha3(uint8(0), rest), v, _data[next], _data[next+1]);
-        require(inLineup(signer));
-        require(lastHandNetted < handId  && handId < hands.length);
-        assembly {
-          amount := calldataload(add(mul(add(next, 3), 32), 19))
-        }
-        uint256 value = jozDecimals.mul(amount);
-        if (value > hands[handId].ins[signer]) {
-          hands[handId].ins[signer] = value;
-          writeCount++;
-        }
-        next = next + 3;
-      }
-    }
-  }
-
-
-  function net() isState(TableState.Tournament) {
-    require(now  >= lastNettingRequestTime + disputeTime);
-    uint256 sumOfSeatBalances = 0;
-    for (uint256 j = 0; j < seats.length; j++) {
-      Seat storage seat = seats[j];
-      for (uint256 i = lastHandNetted + 1; i <= lastNettingRequestHandId; i++ ) {
-        seat.amount = seat.amount.add(hands[i].outs[seat.signerAddr]).sub(hands[i].ins[seat.signerAddr]);
-
-      }
-      sumOfSeatBalances = sumOfSeatBalances.add(seat.amount);
-    }
-    lastHandNetted = lastNettingRequestHandId;
     Netted(lastHandNetted);
     _payout(sumOfSeatBalances);
   }
@@ -360,7 +205,31 @@ contract SnGTable is Ownable {
     }
   }
 
-  function kill(address _dest) public onlyOwner {
-    selfdestruct(_dest);
+  function _getLineup() internal constant returns (uint256, address[] addresses, uint256[] amounts, uint256[] exitHands, uint8 activePlayers) {
+    addresses = new address[](seats.length);
+    amounts = new uint256[](seats.length);
+    exitHands = new uint256[](seats.length);
+    activePlayers = 0;
+    for (uint256 i = 0; i < seats.length; i++) {
+        addresses[i] = seats[i].signerAddr;
+        amounts[i] = seats[i].amount;
+        exitHands[i] = seats[i].exitHand;
+        if (amounts[i] != 0) {
+          activePlayers++ ;
+        }
+    }
+    return (lastHandNetted, addresses, amounts, exitHands, activePlayers);
+  }
+
+  function _inLineup(address _addr) internal constant returns (bool) {
+    for (uint256 i = 0; i < seats.length; i++) {
+      if (seats[i].signerAddr == _addr || seats[i].senderAddr == _addr) {
+        return true;
+      }
+    }
+    if (_addr == oracle) {
+      return true;
+    }
+    return false;
   }
 }

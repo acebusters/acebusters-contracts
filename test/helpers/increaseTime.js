@@ -1,4 +1,4 @@
-// Returns the time of the last mined block in seconds
+// Increases testrpc time by the `time` duration in seconds
 export default function increaseTime(time) {
   return web3.currentProvider.sendAsync({
           jsonrpc: "2.0",
