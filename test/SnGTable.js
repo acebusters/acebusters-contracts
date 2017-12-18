@@ -261,6 +261,245 @@ contract('SnGTable', function(accounts) {
     assert.equal(balancePlayer6After.sub(balancePlayer6Before).toNumber(), 0, 'settlement failed for seat pos 6.');
   });
 
+  it('should join table, then net, then leave.', async () => {
+    await advanceBlock();
+    const table = await Table.new(ORACLE, babz(20), 6, 0, 604800, 86400);
+    let state = await table.state();
+    assert.equal(state.toNumber(), 0);
+
+    await increaseTime(86400 * 7);
+    await table.tick();
+    state = await table.state();
+
+    assert.equal(state.toNumber(), 1);
+
+    const blind = await table.smallBlind.call();
+    assert.equal(blind.toNumber(), babz(20).toNumber(), 'config failed.');
+    await table.join('0x00' + P0_ADDR, {from: accounts[0], value: babz(1000)});
+    await table.join('0x01' + P1_ADDR, {from: accounts[1], value: babz(1000)});
+    await table.join('0x02' + P2_ADDR, {from: accounts[2], value: babz(1000)});
+    await table.join('0x03' + P3_ADDR, {from: accounts[3], value: babz(1000)});
+    await table.join('0x04' + P4_ADDR, {from: accounts[4], value: babz(1000)});
+    await table.join('0x05' + P5_ADDR, {from: accounts[5], value: babz(1000)});
+
+    // leave receipt summitted by oracle BECAUSE p_1 broke after hand 6 (to be taken care of by the backend)
+    const balancePlayer2Before = await web3.eth.getBalance(accounts[1]);
+    const leaveReceipt = new Receipt(table.address).leave(6, P1_ADDR).sign(ORACLE_PRIV);
+    await table.leave(...Receipt.parseToParams(leaveReceipt));
+    const lnr = await table.lastNettingRequestHandId.call();
+    assert.equal(lnr.toNumber(), 6, 'leave request failed.');
+
+    await increaseTime(86400 * 1);
+    await table.tick();
+
+    // submit hand 4
+    // bet 120 NTZ p_0 hand 4
+    var bet41 = new Receipt(table.address).bet(4, babz(120)).sign(P0_PRIV);
+    // bet 150 NTZ p_0 hand 4
+    const bet411 = new Receipt(table.address).bet(4, babz(150)).sign(P0_PRIV);
+    // bet 170 NTZ p_1 hand 4
+    const bet42 = new Receipt(table.address).bet(4, babz(170)).sign(P1_PRIV);
+    // bet 150 NTZ p_2 hand 4
+    const bet43 = new Receipt(table.address).bet(4, babz(150)).sign(P2_PRIV);
+    // bet 170 NTZ p_3 hand 4
+    const bet44 = new Receipt(table.address).bet(4, babz(170)).sign(P3_PRIV);
+    // bet 150 NTZ p_4 hand 4
+    const bet45 = new Receipt(table.address).bet(4, babz(150)).sign(P4_PRIV);
+    // bet 170 NTZ p_5 hand 4
+    const bet46 = new Receipt(table.address).bet(4, babz(170)).sign(P5_PRIV);
+    // dist hand 4 claim 0 - 310 for p_1
+    const dist40 = new Receipt(table.address).dist(4, 0, [new BigNumber(0), babz(310), new BigNumber(0), babz(310), new BigNumber(0), babz(310)]).sign(ORACLE_PRIV);
+    let hand4 = [];
+    hand4 = hand4.concat(Receipt.parseToParams(bet41));
+    hand4 = hand4.concat(Receipt.parseToParams(bet411));
+    hand4 = hand4.concat(Receipt.parseToParams(bet42));
+    hand4 = hand4.concat(Receipt.parseToParams(bet43));
+    hand4 = hand4.concat(Receipt.parseToParams(bet44));
+    hand4 = hand4.concat(Receipt.parseToParams(bet45));
+    hand4 = hand4.concat(Receipt.parseToParams(bet46));
+    hand4 = hand4.concat(Receipt.parseToParams(dist40));
+
+    await table.submit(hand4);
+
+
+    // check hand 4
+    let inVal = await table.getIn.call(4, '0x' + P0_ADDR);
+    assert.equal(inVal.toNumber(), babz(150).toNumber(), 'bet submission failed.');
+    inVal = await table.getIn.call(4, '0x' + P1_ADDR);
+    assert.equal(inVal.toNumber(), babz(170).toNumber(), 'bet submission failed.');
+    inVal = await table.getIn.call(4, '0x' + P2_ADDR);
+    assert.equal(inVal.toNumber(), babz(150).toNumber(), 'bet submission failed.');
+    inVal = await table.getIn.call(4, '0x' + P3_ADDR);
+    assert.equal(inVal.toNumber(), babz(170).toNumber(), 'bet submission failed.');
+    inVal = await table.getIn.call(4, '0x' + P4_ADDR);
+    assert.equal(inVal.toNumber(), babz(150).toNumber(), 'bet submission failed.');
+    inVal = await table.getIn.call(4, '0x' + P5_ADDR);
+    assert.equal(inVal.toNumber(), babz(170).toNumber(), 'bet submission failed.');
+
+    let outVal = await table.getOut.call(4, '0x' + P0_ADDR);
+    assert.equal(outVal[0].toNumber(), 0, 'dist submission failed.');
+    outVal = await table.getOut.call(4, '0x' + P1_ADDR);
+    assert.equal(outVal[0].toNumber(), babz(310).toNumber(), 'dist submission failed.');
+    outVal = await table.getOut.call(4, '0x' + P2_ADDR);
+    assert.equal(outVal[0].toNumber(), 0, 'dist submission failed.');
+    outVal = await table.getOut.call(4, '0x' + P3_ADDR);
+    assert.equal(outVal[0].toNumber(), babz(310).toNumber(), 'dist submission failed.');
+    outVal = await table.getOut.call(4, '0x' + P4_ADDR);
+    assert.equal(outVal[0].toNumber(), 0, 'dist submission failed.');
+    outVal = await table.getOut.call(4, '0x' + P5_ADDR);
+    assert.equal(outVal[0].toNumber(), babz(310).toNumber(), 'dist submission failed.');
+
+
+    // bet 200 p_0 hand 5
+    const bet51 = new Receipt(table.address).bet(5, babz(200)).sign(P0_PRIV);
+    // bet 200 p_1 hand 5
+    const bet52 = new Receipt(table.address).bet(5, babz(200)).sign(P1_PRIV);
+    // bet 200 p_0 hand 5
+    const bet53 = new Receipt(table.address).bet(5, babz(200)).sign(P2_PRIV);
+    // bet 200 p_1 hand 5
+    const bet54 = new Receipt(table.address).bet(5, babz(200)).sign(P3_PRIV);
+    // bet 200 p_0 hand 5
+    const bet55 = new Receipt(table.address).bet(5, babz(200)).sign(P4_PRIV);
+    // bet 200 p_1 hand 5
+    const bet56 = new Receipt(table.address).bet(5, babz(200)).sign(P5_PRIV);
+    // dist p_0 winns all hand 5 claim 1
+    const dist51 = new Receipt(table.address).dist(5, 1, [babz(390), new BigNumber(0), babz(390), new BigNumber(0), babz(390), new BigNumber(0)]).sign(ORACLE_PRIV);
+
+    // bet 120 p_0 hand 6
+    const bet61 = new Receipt(table.address).bet(6, babz(120)).sign(P0_PRIV);
+    // bet 200 p_1 hand 6
+    const bet62 = new Receipt(table.address).bet(6, babz(940)).sign(P1_PRIV);
+    // bet 120 p_0 hand 6
+    const bet63 = new Receipt(table.address).bet(6, babz(120)).sign(P2_PRIV);
+    // bet 200 p_1 hand 6
+    const bet64 = new Receipt(table.address).bet(6, babz(200)).sign(P3_PRIV);
+    // bet 120 p_0 hand 6
+    const bet65 = new Receipt(table.address).bet(6, babz(120)).sign(P4_PRIV);
+    // bet 200 p_1 hand 6
+    const bet66 = new Receipt(table.address).bet(6, babz(200)).sign(P5_PRIV);
+    // dist p_1 wins all hand 6 claim 1
+    const dist61 = new Receipt(table.address).dist(6, 1, [babz(1050), new BigNumber(0), new BigNumber(0), babz(310), new BigNumber(0), babz(310)]).sign(ORACLE_PRIV);
+    // dist p_0 winns all hand 6 claim 0
+    const dist60 = new Receipt(table.address).dist(6, 0, [babz(310), new BigNumber(0), babz(310), new BigNumber(0), babz(310), new BigNumber(0)]).sign(ORACLE_PRIV);
+
+    // submit hand 5 and 6
+    let hands = [];
+    hands = hands.concat(Receipt.parseToParams(dist51));
+    hands = hands.concat(Receipt.parseToParams(bet51));
+    hands = hands.concat(Receipt.parseToParams(bet52));
+    hands = hands.concat(Receipt.parseToParams(bet53));
+    hands = hands.concat(Receipt.parseToParams(bet54));
+    hands = hands.concat(Receipt.parseToParams(bet55));
+    hands = hands.concat(Receipt.parseToParams(bet56));
+    hands = hands.concat(Receipt.parseToParams(dist61));
+    hands = hands.concat(Receipt.parseToParams(dist60));
+    hands = hands.concat(Receipt.parseToParams(bet61));
+    hands = hands.concat(Receipt.parseToParams(bet62));
+    hands = hands.concat(Receipt.parseToParams(bet63));
+    hands = hands.concat(Receipt.parseToParams(bet64));
+    hands = hands.concat(Receipt.parseToParams(bet65));
+    hands = hands.concat(Receipt.parseToParams(bet66));
+    const writeCount = await table.submit.call(hands);
+    assert.equal(writeCount.toNumber(), 18, 'not all receipt recognized');
+    await table.submit(hands);
+
+    // check hand 5
+    inVal = await table.getIn.call(5, '0x' + P0_ADDR);
+    assert.equal(inVal.toNumber(), 200000000000000, 'bet submission failed.');
+    inVal = await table.getIn.call(5, '0x' + P1_ADDR);
+    assert.equal(inVal.toNumber(), 200000000000000, 'bet submission failed.');
+    inVal = await table.getIn.call(5, '0x' + P2_ADDR);
+    assert.equal(inVal.toNumber(), 200000000000000, 'bet submission failed.');
+    inVal = await table.getIn.call(5, '0x' + P3_ADDR);
+    assert.equal(inVal.toNumber(), 200000000000000, 'bet submission failed.');
+    inVal = await table.getIn.call(5, '0x' + P4_ADDR);
+    assert.equal(inVal.toNumber(), 200000000000000, 'bet submission failed.');
+    inVal = await table.getIn.call(5, '0x' + P5_ADDR);
+    assert.equal(inVal.toNumber(), 200000000000000, 'bet submission failed.');
+
+    outVal = await table.getOut.call(5, '0x' + P0_ADDR);
+    assert.equal(outVal[0].toNumber(), 390000000000000, 'dist submission failed.');
+    outVal = await table.getOut.call(5, '0x' + P1_ADDR);
+    assert.equal(outVal[0].toNumber(), 0, 'dist submission failed.');
+    outVal = await table.getOut.call(5, '0x' + P2_ADDR);
+    assert.equal(outVal[0].toNumber(), 390000000000000, 'dist submission failed.');
+    outVal = await table.getOut.call(5, '0x' + P3_ADDR);
+    assert.equal(outVal[0].toNumber(), 0, 'dist submission failed.');
+    outVal = await table.getOut.call(5, '0x' + P4_ADDR);
+    assert.equal(outVal[0].toNumber(), 390000000000000, 'dist submission failed.');
+    outVal = await table.getOut.call(5, '0x' + P5_ADDR);
+    assert.equal(outVal[0].toNumber(), 0, 'dist submission failed.');
+
+    // check hand 6
+    inVal = await table.getIn.call(6, '0x' + P0_ADDR);
+    assert.equal(inVal.toNumber(), 120000000000000, 'bet submission failed.');
+    inVal = await table.getIn.call(6, '0x' + P1_ADDR);
+    assert.equal(inVal.toNumber(), 940000000000000, 'bet submission failed.');
+    inVal = await table.getIn.call(6, '0x' + P2_ADDR);
+    assert.equal(inVal.toNumber(), 120000000000000, 'bet submission failed.');
+    inVal = await table.getIn.call(6, '0x' + P3_ADDR);
+    assert.equal(inVal.toNumber(), 200000000000000, 'bet submission failed.');
+    inVal = await table.getIn.call(6, '0x' + P4_ADDR);
+    assert.equal(inVal.toNumber(), 120000000000000, 'bet submission failed.');
+    inVal = await table.getIn.call(6, '0x' + P5_ADDR);
+    assert.equal(inVal.toNumber(), 200000000000000, 'bet submission failed.');
+
+    outVal = await table.getOut.call(6, '0x' + P0_ADDR);
+    assert.equal(outVal[0].toNumber(), 1050000000000000, 'dist submission failed.');
+    outVal = await table.getOut.call(6, '0x' + P1_ADDR);
+    assert.equal(outVal[0].toNumber(), 0, 'dist submission failed.');
+    outVal = await table.getOut.call(6, '0x' + P2_ADDR);
+    assert.equal(outVal[0].toNumber(), 0, 'dist submission failed.');
+    outVal = await table.getOut.call(6, '0x' + P3_ADDR);
+    assert.equal(outVal[0].toNumber(), 310000000000000, 'dist submission failed.');
+    outVal = await table.getOut.call(6, '0x' + P4_ADDR);
+    assert.equal(outVal[0].toNumber(), 0, 'dist submission failed.');
+    outVal = await table.getOut.call(6, '0x' + P5_ADDR);
+    assert.equal(outVal[0].toNumber(), 310000000000000, 'dist submission failed.');
+
+    // net
+    await table.net();
+    const lhn = await table.lastHandNetted.call();
+    assert.equal(lhn.toNumber(), 6, 'settlement failed.');
+
+    // 1000 buyin - 150 (hand4) + 190 (hand5) + 930 (hand6) = 1970
+    let seat = await table.seats.call(0);
+    assert.equal(seat[1].toNumber(), babz(1970).toNumber(), 'settlement failed.');
+
+    // 1000 buyin - 150 (hand4) + 190 (hand5) - 120 (hand6) = 920
+    seat = await table.seats.call(2);
+    assert.equal(seat[1].toNumber(), babz(920).toNumber(), 'settlement failed.');
+
+    // 1000 buyin + 140 (hand4) - 200 (hand5) + 110 (hand6) = 1050
+    seat = await table.seats.call(3);
+    assert.equal(seat[1].toNumber(), babz(1050).toNumber(), 'settlement failed.');
+
+    // 1000 buyin - 150 (hand4) + 190 (hand5) - 120 (hand6) = 920
+    seat = await table.seats.call(4);
+    assert.equal(seat[1].toNumber(), babz(920).toNumber(), 'settlement failed.');
+
+    // 1000 buyin + 140 (hand4) - 200 (hand5) + 110 (hand6) = 1050
+    seat = await table.seats.call(5);
+    assert.equal(seat[1].toNumber(), babz(1050).toNumber(), 'settlement failed.');
+
+    // try rebuy
+    try {
+      await table.join('0x00' + P0_ADDR, {from: accounts[0], value: babz(1000)});
+    } catch (error) {
+      assertJump(error);
+      seat = await table.seats.call(0);
+      assert.equal(seat[1].toNumber(), babz(1970).toNumber(), 'buy in possible.');
+    }
+
+    seat = await table.seats.call(1);
+    assert.equal(seat[1].toNumber(), 0, 'payout failed.');
+
+    // no payout made to broke player
+    const balancePlayer2After = await web3.eth.getBalance(accounts[1]);
+    assert.equal(balancePlayer2Before.sub(balancePlayer2After).toNumber(), 0, 'player was not broke.');
+  });
+
+
   it('should not accept distributions that spend more than bets.');
 
   it('should prevent bets that spend more than estimated balance.');
