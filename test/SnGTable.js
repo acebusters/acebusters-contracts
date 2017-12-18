@@ -19,14 +19,14 @@ contract('SnGTable', function(accounts) {
   const P2_ADDR = '945caca63faeb3ef5eeb0dee173e28ad3b3aebcf';
   const P2_PRIV = '0x1fac0e0f4992ef1d9d3ddab29ea41dd9aa5f4007e9b7b663739ad7eeed77c3f0';
 
-  const P3_ADDR = '3778622ae23d2696effe148035f1f53b896ad8fc';
-  const P3_PRIV = '0x39aeb43da3514b6a5178e1076ce7cfcd7fa5183e01166d75c50717e517dcef4e';
+  const P3_ADDR = 'cbf3169caf62827c6e42bd554a1620cd83244b56';
+  const P3_PRIV = '0x60b17f4968e1710647126ea97046e36aadcc5e2f81bba575138e1e06edfdcfca';
 
   const P4_ADDR = '937b68214157e8c4d1dc1548e361099f0c066bf3';
   const P4_PRIV = '0x88e75f7aecf14e85ea576f536674e7c9fc6f1b76fae3cc0b4b14693687bd4614';
 
-  const P5_ADDR = 'dde567242ed9d70eed542e04987192ee0e4333b6';
-  const P5_PRIV = '0x39b1a0948ad9b0662cb1bb20888b60a7dfb161778000ca6d518aacefe51c1b67';
+  const P5_ADDR = '3778622ae23d2696effe148035f1f53b896ad8fc';
+  const P5_PRIV = '0x39aeb43da3514b6a5178e1076ce7cfcd7fa5183e01166d75c50717e517dcef4e';
 
   const ORACLE = '0x82e8c6cf42c8d1ff9594b17a3f50e94a12cc860f';
   const ORACLE_PRIV = '0x94890218f2b0d04296f30aeafd13655eba4c5bbf1770273276fee52cbe3f2cb4';
