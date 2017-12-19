@@ -1,9 +1,9 @@
 pragma solidity ^0.4.11;
 
-import './Ownable.sol';
+import './Governable.sol';
 import './SafeMath.sol';
 
-contract SnGTable is Ownable {
+contract SnGTable is Governable {
   using SafeMath for uint;
 
   event Join(address indexed addr, uint256 amount);
@@ -59,7 +59,7 @@ contract SnGTable is Ownable {
   }
 
   // onlyOwner function
-  function kill(address _dest) public onlyOwner {
+  function kill(address _dest) public onlyAdmins {
     selfdestruct(_dest);
   }
 
