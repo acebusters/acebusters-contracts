@@ -321,6 +321,53 @@ contract('SnGTable', function(accounts) {
     assert(false, 'should have thrown');
   });
 
+  it("should allow admin to kill table and transfer eth to escrow", async () => {
+    await advanceBlock();
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    let state = await table.state();
+    assert.equal(state.toNumber(), 0);
+
+    await increaseTime(86400 * 7);
+    await table.tick();
+    state = await table.state();
+
+    assert.equal(state.toNumber(), 1);
+
+    const minBuyIn = await table.minBuyIn.call();
+    assert.equal(minBuyIn.toNumber(), babz(80).toNumber(), 'config failed.');
+    await table.join('0x00' + P0_ADDR, {from: accounts[0], value: babz(100)});
+    await table.join('0x01' + P1_ADDR, {from: accounts[1], value: babz(100)});
+    await table.join('0x02' + P2_ADDR, {from: accounts[2], value: babz(100)});
+    await table.join('0x03' + P3_ADDR, {from: accounts[3], value: babz(100)});
+    await table.join('0x04' + P4_ADDR, {from: accounts[4], value: babz(100)});
+    await table.join('0x05' + P5_ADDR, {from: accounts[5], value: babz(100)});
+
+    let seat = await table.seats.call(0);
+    assert.equal(seat[0], accounts[0], 'join failed.');
+    seat = await table.seats.call(1);
+    assert.equal(seat[0], accounts[1], 'join failed.');
+    seat = await table.seats.call(2);
+    assert.equal(seat[0], accounts[2], 'join failed.');
+    seat = await table.seats.call(3);
+    assert.equal(seat[0], accounts[3], 'join failed.');
+    seat = await table.seats.call(4);
+    assert.equal(seat[0], accounts[4], 'join failed.');
+
+    await increaseTime(86400);
+
+    await table.tick();
+    state = await table.state();
+    assert.equal(state.toNumber(), 2);
+
+    // kill contract and check balance with escrow council
+    const balanceBefore = await web3.eth.getBalance(accounts[0]);
+    await table.kill(accounts[0], {gasPrice: 0});
+    const balanceAfter = await web3.eth.getBalance(accounts[0]);
+
+    assert.equal(balanceAfter.sub(balanceBefore).toNumber(), babz(600).toNumber());
+
+  });
+
   it("should join table, then settle, then leave broke.", async () => {
     await advanceBlock();
     const table = await Table.new(ORACLE, babz(40), 8, 0, 604800, 86400);
