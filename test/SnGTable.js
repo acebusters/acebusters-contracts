@@ -456,6 +456,39 @@ contract('SnGTable', function(accounts) {
     assert.equal(balancePlayer6After.sub(balancePlayer6Before).toNumber(), 0, 'settlement failed for seat pos 6.');
   });
 
+  it("should have default blind structure", async () => {
+    await advanceBlock();
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    let blindStructure = await table.getBlindStructure();
+    const defaultStructure = [10, 15, 25, 50, 75, 100, 200, 300, 400, 600, 800, 1000, 1500];
+    assert.equal(blindStructure.length, 13);
+    assert.equal(blindStructure[0], 10);
+    assert.equal(blindStructure[5], 100);
+    assert.equal(blindStructure[12], 1500);
+  });
+
+  it("should have custom blind structure if specified", async () => {
+    await advanceBlock();
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400, 10, [11, 22]);
+    let blindStructure = await table.getBlindStructure();
+    assert.equal(blindStructure.length, 2);
+    assert.equal(blindStructure[0], 11);
+  });
+
+  it("should have default blind level duration", async () => {
+    await advanceBlock();
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    let blindLevelDuration = await table.blindLevelDuration();
+    assert.equal(blindLevelDuration.toNumber(), 10, 'default level duration');
+  });
+
+  it("should have custom blind level duration if specified", async () => {
+    await advanceBlock();
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400, 5, [10, 20]);
+    let blindLevelDuration = await table.blindLevelDuration();
+    assert.equal(blindLevelDuration.toNumber(), 5, 'default level duration');
+  });
+
   it('should not accept distributions that spend more than bets.');
 
   it('should prevent bets that spend more than estimated balance.');
