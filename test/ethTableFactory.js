@@ -15,7 +15,7 @@ contract("EthTableFactory", (accounts) => {
     const token = accounts[1];
     const factory = await EthTableFactory.new();
     await factory.configure(token, oracle, 0);
-    await factory.create(50, 8, 604800, 86400);
+    await factory.create(50, 8, 604800, 86400, 0, []);
     const tables = await factory.getTables.call();
     assert.equal(tables.length, 1, 'table not created.');
     const tableAddr = await factory.tables.call(0);
@@ -37,7 +37,7 @@ contract("EthTableFactory", (accounts) => {
     const factory = await EthTableFactory.new();
     await factory.configure(token, oracle, 0);
     await factory.addAdmin(accounts[2]);
-    await factory.create(50, 8, 604800, 86400, { from: accounts[2] });
+    await factory.create(50, 8, 604800, 86400, 0, [], { from: accounts[2] });
     const tables = await factory.getTables.call();
     assert.equal(tables.length, 1, 'table not created.');
   });
@@ -49,7 +49,7 @@ contract("EthTableFactory", (accounts) => {
     await factory.configure(token, oracle, 0);
 
     try {
-      await factory.create(50, 8, 604800, 86400, { from: accounts[2] });
+      await factory.create(50, 8, 604800, 86400, 0, [], { from: accounts[2] });
       assert.fail('should have thrown before');
     } catch (err) {
       assertJump(err);
@@ -61,11 +61,11 @@ contract("EthTableFactory", (accounts) => {
     const token = accounts[1];
     const factory = await EthTableFactory.new();
     await factory.configure(token, oracle, 0);
-    await factory.create(50, 2, 604800, 86400);
-    await factory.create(100, 4, 604800, 86400);
-    await factory.create(150, 6, 604800, 86400);
-    await factory.create(250, 8, 604800, 86400);
-    await factory.create(350, 10, 604800, 86400);
+    await factory.create(50, 2, 604800, 86400, 0, []);
+    await factory.create(100, 4, 604800, 86400, 0, []);
+    await factory.create(150, 6, 604800, 86400, 0, []);
+    await factory.create(250, 8, 604800, 86400, 0, []);
+    await factory.create(350, 10, 604800, 86400, 0, []);
     const tables = await factory.getTables.call();
     assert.equal(tables.length, 5, 'tables not created.');
   });
