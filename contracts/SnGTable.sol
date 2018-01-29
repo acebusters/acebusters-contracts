@@ -19,6 +19,9 @@ contract SnGTable is Governable {
   uint256 public restartTime;
   uint256 public coolOffPeriod;
   uint256 public registrationPeriod;
+  uint16[] public blindStructure;
+  uint256 public blindLevelDuration;
+
   address public tokenAddr;
   uint256 roundingFactor = 1000000000;
 
@@ -39,7 +42,10 @@ contract SnGTable is Governable {
   uint256 public lastNettingRequestTime;
   uint256 disputeTime;
 
-  function SnGTable(address _oracle, uint256 _mbi, uint256 _seats, uint256 _disputeTime, uint256 _coolOffPeriod, uint256 _registrationPeriod) {
+  uint16[] public DEFAULT_BLIND_STRUCTURE = [10, 15, 25, 50, 75, 100, 200, 300, 400, 600, 800, 1000, 1500];
+  uint256 constant DEFAULT_LEVEL_DURATION = 10;
+
+  function SnGTable(address _oracle, uint256 _mbi, uint256 _seats, uint256 _disputeTime, uint256 _coolOffPeriod, uint256 _registrationPeriod, uint256 _blindLevelDuration, uint16[] _blindStructure) {
     oracle = _oracle;
     mbi = _mbi;
     seats.length = _seats;
@@ -49,6 +55,8 @@ contract SnGTable is Governable {
     disputeTime = _disputeTime;
     coolOffPeriod = _coolOffPeriod;
     registrationPeriod = _registrationPeriod;
+    blindStructure = _blindStructure.length > 0 ? _blindStructure : DEFAULT_BLIND_STRUCTURE;
+    blindLevelDuration = _blindLevelDuration > 0 ? _blindLevelDuration : DEFAULT_LEVEL_DURATION;
     restartTime = now;
     state = TableState.CoolOff;
   }
@@ -79,6 +87,10 @@ contract SnGTable is Governable {
 
   function minBuyIn() constant returns (uint256) {
     return mbi;
+  }
+
+  function getBlindStructure() constant returns (uint16[]) {
+    return blindStructure;
   }
 
   function getLineup() public constant isState(TableState.Tournament) returns (uint256, address[] addresses, uint256[] amounts, uint256[] exitHands, uint8 activePlayers) {
