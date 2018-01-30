@@ -43,7 +43,7 @@ contract SnGTable is Governable {
   uint256 disputeTime;
 
   uint16[] public DEFAULT_BLIND_STRUCTURE = [10, 15, 25, 50, 75, 100, 200, 300, 400, 600, 800, 1000, 1500];
-  uint256 constant DEFAULT_LEVEL_DURATION = 10;
+  uint256 constant DEFAULT_LEVEL_DURATION = 600;
 
   function SnGTable(address _oracle, uint256 _mbi, uint256 _seats, uint256 _disputeTime, uint256 _coolOffPeriod, uint256 _registrationPeriod, uint256 _blindLevelDuration, uint16[] _blindStructure) {
     oracle = _oracle;
