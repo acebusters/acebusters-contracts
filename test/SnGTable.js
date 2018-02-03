@@ -35,7 +35,7 @@ contract('SnGTable', function(accounts) {
 
   it("should start tournament with min 6 people, then settle, then leave.", async () => {
     await advanceBlock();
-    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400, 1, []);
     let state = await table.state();
     assert.equal(state.toNumber(), 0);
 
@@ -123,7 +123,7 @@ contract('SnGTable', function(accounts) {
 
   it("should not allow join for less than minBuyIn", async () => {
     await advanceBlock();
-    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400, 1, []);
     let state = await table.state();
     assert.equal(state.toNumber(), 0);
 
@@ -143,7 +143,7 @@ contract('SnGTable', function(accounts) {
 
   it("should not allow allow join multiple times", async () => {
     await advanceBlock();
-    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400, 1, []);
     let state = await table.state();
     assert.equal(state.toNumber(), 0);
 
@@ -169,7 +169,7 @@ contract('SnGTable', function(accounts) {
 
   it("should not allow to start Registration before 7 days from restartTime.", async () => {
     await advanceBlock();
-    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400, 1, []);
     let state = await table.state();
     assert.equal(state.toNumber(), 0);
 
@@ -186,7 +186,7 @@ contract('SnGTable', function(accounts) {
 
   it("should not allow to start Tournament before 8 days from restartTime.", async () => {
     await advanceBlock();
-    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400, 1, []);
     let state = await table.state();
     assert.equal(state.toNumber(), 0);
 
@@ -230,7 +230,7 @@ contract('SnGTable', function(accounts) {
 
   it("should not allow to start tournament without min 6 players", async () => {
     await advanceBlock();
-    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400, 1, []);
     let state = await table.state();
     assert.equal(state.toNumber(), 0);
 
@@ -271,7 +271,7 @@ contract('SnGTable', function(accounts) {
 
   it("should join and immediately leave.", async () => {
     await advanceBlock();
-    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400, 1, []);
     let state = await table.state();
     assert.equal(state.toNumber(), 0);
 
@@ -293,7 +293,7 @@ contract('SnGTable', function(accounts) {
 
   it("should not settle before Table State is in tournament", async () => async () => {
     await advanceBlock();
-    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400, 1, []);
     let state = await table.state();
     assert.equal(state.toNumber(), 0);
 
@@ -323,7 +323,7 @@ contract('SnGTable', function(accounts) {
 
   it("should allow admin to kill table and transfer eth to escrow", async () => {
     await advanceBlock();
-    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400, 1, []);
     let state = await table.state();
     assert.equal(state.toNumber(), 0);
 
@@ -370,7 +370,7 @@ contract('SnGTable', function(accounts) {
 
   it("should join table, then settle, then leave broke.", async () => {
     await advanceBlock();
-    const table = await Table.new(ORACLE, babz(40), 8, 0, 604800, 86400);
+    const table = await Table.new(ORACLE, babz(40), 8, 0, 604800, 86400, 1, []);
     let state = await table.state();
     assert.equal(state.toNumber(), 0);
 
@@ -458,9 +458,8 @@ contract('SnGTable', function(accounts) {
 
   it("should have default blind structure", async () => {
     await advanceBlock();
-    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400, 1, []);
     let blindStructure = await table.getBlindStructure();
-    const defaultStructure = [10, 15, 25, 50, 75, 100, 200, 300, 400, 600, 800, 1000, 1500];
     assert.equal(blindStructure.length, 13);
     assert.equal(blindStructure[0], 10);
     assert.equal(blindStructure[5], 100);
@@ -477,9 +476,9 @@ contract('SnGTable', function(accounts) {
 
   it("should have default blind level duration", async () => {
     await advanceBlock();
-    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400);
+    const table = await Table.new(ORACLE, babz(80), 8, 0, 604800, 86400, 0, []);
     let blindLevelDuration = await table.blindLevelDuration();
-    assert.equal(blindLevelDuration.toNumber(), 10, 'default level duration');
+    assert.equal(blindLevelDuration.toNumber(), 600, 'default level duration');
   });
 
   it("should have custom blind level duration if specified", async () => {
