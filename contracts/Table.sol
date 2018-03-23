@@ -11,8 +11,10 @@ contract Table {
   event Netted(uint256 hand);
   event Leave(address addr);
 
+  uint256[] public blindStructure;
+  uint256 public blindLevelDuration;
+
   address public oracle;
-  uint256 sb;
   address public tokenAddr;
   uint256 jozDecimals = 1000000000;
 
@@ -42,10 +44,11 @@ contract Table {
   uint256 public lastNettingRequestTime;
   uint256 disputeTime;
 
-  function Table(address _token, address _oracle, uint256 _smallBlind, uint256 _seats, uint256 _disputeTime) {
+  function Table(address _token, address _oracle, uint256 _seats, uint256 _disputeTime, uint256[] _blindStructure, uint256 _blindLevelDuration) {
     tokenAddr = _token;
     oracle = _oracle;
-    sb = _smallBlind;
+    blindLevelDuration = _blindLevelDuration;
+    blindStructure = _blindStructure;
     seats.length = _seats;
     lastHandNetted = 1;
     lastNettingRequestHandId = 1;
@@ -53,8 +56,16 @@ contract Table {
     disputeTime = _disputeTime;
   }
 
-  function smallBlind() constant returns (uint256) {
-    return sb;
+  function smallBlind(uint256 secsFromStart) constant returns (uint256) {
+    if (blindStructure.length == 1) {
+      return blindStructure[0];
+    }
+    uint level = blindLevelDuration / secsFromStart;
+    if (level > blindStructure.length - 1) {
+      return blindStructure[blindStructure.length - 1];
+    }
+
+    return blindStructure[level];
   }
 
   function getLineup() constant returns (uint256, address[] addresses, uint256[] amounts, uint256[] exitHands) {
@@ -114,6 +125,7 @@ contract Table {
   function tokenFallback(address _from, uint256 _value, bytes _data) {
     assert(msg.sender == tokenAddr);
     // check the dough
+    uint256 sb = blindStructure[0];
     assert(40 * sb <= _value && _value <= 400 * sb);
 
     uint8 pos;
@@ -140,7 +152,7 @@ contract Table {
       assert(seats[pos].exitHand == 0);
       seats[pos].amount += _value;
     } else {
-      if (pos >=seats.length || seats[pos].amount > 0 || seats[pos].senderAddr != 0) {
+      if (pos >= seats.length || seats[pos].amount > 0 || seats[pos].senderAddr != 0) {
         throw;
       }
       //seat player
@@ -278,7 +290,7 @@ contract Table {
       } else {
         signer = ecrecover(sha3(uint8(0), rest), v, _data[next], _data[next+1]);
         assert(inLineup(signer));
-        assert(lastHandNetted < handId  && handId < hands.length);
+        assert(lastHandNetted < handId && handId < hands.length);
         assembly {
           amount := calldataload(add(mul(add(next, 3), 32), 19))
         }
@@ -294,7 +306,7 @@ contract Table {
 
 
   function net() {
-    assert(now  >= lastNettingRequestTime + disputeTime);
+    assert(now >= lastNettingRequestTime + disputeTime);
     uint256 sumOfSeatBalances = 0;
     for (uint256 j = 0; j < seats.length; j++) {
       Seat storage seat = seats[j];
