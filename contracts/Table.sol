@@ -56,15 +56,21 @@ contract Table {
     disputeTime = _disputeTime;
   }
 
-  function smallBlind(uint256 secsFromStart) constant returns (uint256) {
-    if (blindStructure.length == 1) {
-      return blindStructure[0];
-    }
-    uint level = blindLevelDuration / secsFromStart;
-    if (level > blindStructure.length - 1) {
-      return blindStructure[blindStructure.length - 1];
+  function blindLevel(uint256 secsFromStart) constant returns (uint) {
+    if (blindStructure.length == 1 || blindLevelDuration == 0) {
+      return 0;
     }
 
+    uint level = secsFromStart / blindLevelDuration;
+    if (level > blindStructure.length - 1) {
+      return blindStructure.length - 1;
+    }
+
+    return level;
+  }
+
+  function smallBlind(uint256 secsFromStart) constant returns (uint256) {
+    uint level = blindLevel(secsFromStart);
     return blindStructure[level];
   }
 

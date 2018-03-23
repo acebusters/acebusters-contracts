@@ -271,6 +271,48 @@ contract('Table', function(accounts) {
     });
   });
 
+  describe('smallBlind()', () => {
+    it('should return first blind from structure if blindStucture.length == 0', async () => {
+      const token = await Token.new();
+      const table = await Table.new(token.address, ORACLE, 2, 0, [babz(20)], 1);
+      const blind = await table.smallBlind.call(0);
+
+      assert.equal(blind.toNumber(), babz(20).toNumber(), 'incorrect blind');
+    });
+
+    it('should return first blind from structure if blindLevelDuration == 0', async () => {
+      const token = await Token.new();
+      const table = await Table.new(token.address, ORACLE, 2, 0, [babz(20), babz(30)], 0);
+      const blind = await table.smallBlind.call(0);
+
+      assert.equal(blind.toNumber(), babz(20).toNumber(), 'incorrect blind');
+    });
+
+    it('should return correct blind', async () => {
+      const token = await Token.new();
+      const table = await Table.new(token.address, ORACLE, 2, 0, [babz(20), babz(30)], 10);
+      const blind = await table.smallBlind.call(15);
+
+      assert.equal(blind.toNumber(), babz(30).toNumber(), 'incorrect blind');
+    });
+
+    it('should return correct blind', async () => {
+      const token = await Token.new();
+      const table = await Table.new(token.address, ORACLE, 2, 0, [babz(20), babz(30)], 10);
+      const blind = await table.smallBlind.call(9);
+
+      assert.equal(blind.toNumber(), babz(20).toNumber(), 'incorrect blind');
+    });
+
+    it('should return last blind if reached maximum level', async () => {
+      const token = await Token.new();
+      const table = await Table.new(token.address, ORACLE, 2, 0, [babz(20), babz(30)], 10);
+      const blind = await table.smallBlind.call(1000);
+
+      assert.equal(blind.toNumber(), babz(30).toNumber(), 'incorrect blind');
+    });
+  });
+
   it('should not accept distributions that spend more than bets.');
 
   it('should prevent bets that spend more than estimated balance.');
