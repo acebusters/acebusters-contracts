@@ -11,7 +11,7 @@ contract Table {
   event Netted(uint256 hand);
   event Leave(address addr);
 
-  uint256[] public blindStructure;
+  uint16[] public blindStructure;
   uint256 public blindLevelDuration;
 
   address public oracle;
@@ -44,11 +44,11 @@ contract Table {
   uint256 public lastNettingRequestTime;
   uint256 disputeTime;
 
-  function Table(address _token, address _oracle, uint256 _seats, uint256 _disputeTime, uint256[] _blindStructure, uint256 _blindLevelDuration) {
+  function Table(address _token, address _oracle, uint256 _seats, uint256 _disputeTime, uint16[] _blindStructure, uint256 _blindLevelDuration) {
     tokenAddr = _token;
     oracle = _oracle;
     blindLevelDuration = _blindLevelDuration;
-    blindStructure = _blindStructure;
+    blindStructure = _blindStructure; // blinds in ntz
     seats.length = _seats;
     lastHandNetted = 1;
     lastNettingRequestHandId = 1;
@@ -70,8 +70,7 @@ contract Table {
   }
 
   function smallBlind(uint256 secsFromStart) constant returns (uint256) {
-    uint level = blindLevel(secsFromStart);
-    return blindStructure[level];
+    return uint256(blindStructure[blindLevel(secsFromStart)]) * 1000000000000; // get current blind and convert it to babz
   }
 
   function getLineup() constant returns (uint256, address[] addresses, uint256[] amounts, uint256[] exitHands) {
@@ -131,7 +130,7 @@ contract Table {
   function tokenFallback(address _from, uint256 _value, bytes _data) {
     assert(msg.sender == tokenAddr);
     // check the dough
-    uint256 sb = blindStructure[0];
+    uint256 sb = smallBlind(0);
     assert(40 * sb <= _value && _value <= 400 * sb);
 
     uint8 pos;

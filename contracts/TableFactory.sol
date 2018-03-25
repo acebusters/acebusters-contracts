@@ -36,7 +36,7 @@ contract TableFactory is Governable {
     disputeTime = _disputeTime;
   }
 
-  function create(uint256[] _blindStructure, uint256 _blindLevelDuration, uint _seats) onlyAdmins returns (address) {
+  function create(uint16[] _blindStructure, uint256 _blindLevelDuration, uint _seats) onlyAdmins returns (address) {
     assert(_blindStructure.length != 0 && tokenAddress != 0x0 && oracleAddress != 0x0);
     assert(2 <= _seats && _seats <= 10);
     address table = new Table(tokenAddress, oracleAddress, _seats, disputeTime, _blindStructure, _blindLevelDuration);
