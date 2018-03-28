@@ -37,8 +37,8 @@ contract('Table', function(accounts) {
 
   it("should join table, then settle, then leave.", async () => {
     const token = await Token.new();
-    const table = await Table.new(token.address, ORACLE, 2000000000000, 2, 0);
-    const blind = await table.smallBlind.call();
+    const table = await Table.new(token.address, ORACLE, 2, 0, [2], 1);
+    const blind = await table.smallBlind.call(0);
     assert.equal(blind.toNumber(), 2000000000000, 'config failed.');
     await token.transfer(accounts[1], 100000000000000);
     await token.transData(table.address, 100000000000000, '0x00' + P0_ADDR);
@@ -66,7 +66,7 @@ contract('Table', function(accounts) {
 
   it("should join and immediately leave.", async () => {
     const token = await Token.new();
-    const table = await Table.new(token.address, ORACLE, 2000000000000, 2, 0);
+    const table = await Table.new(token.address, ORACLE, 2, 0, [2], 1);
     await token.transData(table.address, 100000000000000, '0x00' + P0_ADDR);
     let seat = await table.seats.call(0);
     assert.equal(seat[0], accounts[0], 'join failed.');
@@ -92,7 +92,7 @@ contract('Table', function(accounts) {
 
   it("should not allow settle empty seat", async () => {
     const token = await Token.new();
-    const table = await Table.new(token.address, ORACLE, babz(2), 2, 0);
+    const table = await Table.new(token.address, ORACLE, 2, 0, [2], 1);
 
     // set in just one player
     await join({ table, pos: 0, signerAddr: P0_ADDR, token, amount: babz(100) });
@@ -114,7 +114,7 @@ contract('Table', function(accounts) {
 
   it("should join table, then settle, then leave broke.", async () => {
     const token = await Token.new();
-    const table = await Table.new(token.address, ORACLE, babz(1), 2, 0);
+    const table = await Table.new(token.address, ORACLE, 2, 0, [1], 1);
     await token.transfer(accounts[1], babz(40));
     await token.transData(table.address, babz(40), '0x00' + P0_ADDR);
     await token.transData(table.address, babz(40), '0x01' + P1_ADDR, {from: accounts[1]});
@@ -145,7 +145,7 @@ contract('Table', function(accounts) {
 
   it('should join table, then net, then leave.', async () => {
     const token = await Token.new();
-    const table = await Table.new(token.address, ORACLE, babz(20), 2, 0);
+    const table = await Table.new(token.address, ORACLE, 2, 0, [20], 1);
 
     await token.transfer(accounts[1], babz(1000));
     await token.transData(table.address, babz(1000), '0x00' + P0_ADDR);
@@ -253,7 +253,7 @@ contract('Table', function(accounts) {
   describe('#leave()', () => {
     it('should fail if player is already leaving', async() => {
       const token = await Token.new();
-      const table = await Table.new(token.address, ORACLE, babz(20), 2, 0);
+      const table = await Table.new(token.address, ORACLE, 2, 0, [20], 1);
 
       await token.transfer(accounts[1], babz(1000));
       await token.transData(table.address, babz(1000), '0x00' + P0_ADDR);
@@ -268,6 +268,48 @@ contract('Table', function(accounts) {
       } catch (err) {
         assertJump(err);
       }
+    });
+  });
+
+  describe('smallBlind()', () => {
+    it('should return first blind from structure if blindStucture.length == 0', async () => {
+      const token = await Token.new();
+      const table = await Table.new(token.address, ORACLE, 2, 0, [20], 1);
+      const blind = await table.smallBlind.call(0);
+
+      assert.equal(blind.toNumber(), babz(20).toNumber(), 'incorrect blind');
+    });
+
+    it('should return first blind from structure if blindLevelDuration == 0', async () => {
+      const token = await Token.new();
+      const table = await Table.new(token.address, ORACLE, 2, 0, [20, 30], 0);
+      const blind = await table.smallBlind.call(0);
+
+      assert.equal(blind.toNumber(), babz(20).toNumber(), 'incorrect blind');
+    });
+
+    it('should return correct blind', async () => {
+      const token = await Token.new();
+      const table = await Table.new(token.address, ORACLE, 2, 0, [20, 30], 10);
+      const blind = await table.smallBlind.call(15);
+
+      assert.equal(blind.toNumber(), babz(30).toNumber(), 'incorrect blind');
+    });
+
+    it('should return correct blind', async () => {
+      const token = await Token.new();
+      const table = await Table.new(token.address, ORACLE, 2, 0, [20, 30], 10);
+      const blind = await table.smallBlind.call(9);
+
+      assert.equal(blind.toNumber(), babz(20).toNumber(), 'incorrect blind');
+    });
+
+    it('should return last blind if reached maximum level', async () => {
+      const token = await Token.new();
+      const table = await Table.new(token.address, ORACLE, 2, 0, [20, 30], 10);
+      const blind = await table.smallBlind.call(1000);
+
+      assert.equal(blind.toNumber(), babz(30).toNumber(), 'incorrect blind');
     });
   });
 
