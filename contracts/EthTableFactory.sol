@@ -38,7 +38,8 @@ contract EthTableFactory is Governable {
 
   function create(uint96 _minBuyIn, uint _seats, uint256 _coolOffPeriod,
                   uint256 _registrationPeriod, uint256 _blindLevelDuration,
-                  uint16[] _blindStructure) onlyAdmins returns (address) {
+                  uint16[] _blindStructure) onlyAdmins returns (address
+  ) {
     assert(_minBuyIn != 0 && tokenAddress != 0x0 && oracleAddress != 0x0);
     assert(2 <= _seats && _seats <= 10);
     address table = new SnGTable(oracleAddress, _minBuyIn, _seats, disputeTime,

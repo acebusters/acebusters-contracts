@@ -93,6 +93,23 @@ contract SnGTable is Governable {
     return blindStructure;
   }
 
+  function blindLevel(uint256 secsFromStart) constant returns (uint) {
+    if (blindStructure.length == 1 || blindLevelDuration == 0) {
+      return 0;
+    }
+
+    uint level = secsFromStart / blindLevelDuration;
+    if (level > blindStructure.length - 1) {
+      return blindStructure.length - 1;
+    }
+
+    return level;
+  }
+
+  function smallBlind(uint256 secsFromStart) constant returns (uint16) {
+    return blindStructure[blindLevel(secsFromStart)];
+  }
+
   function getLineup() public constant isState(TableState.Tournament) returns (uint256, address[] addresses, uint256[] amounts, uint256[] exitHands, uint8 activePlayers) {
     return _getLineup();
   }
@@ -114,7 +131,9 @@ contract SnGTable is Governable {
     }
     require(signerAddr != 0x0);
 
-    if (pos >=seats.length || seats[pos].amount > 0 || seats[pos].senderAddr != 0 || _inLineup(msg.sender)) revert();
+    if (pos >= seats.length || seats[pos].amount > 0 || seats[pos].senderAddr != 0 || _inLineup(msg.sender)) {
+      revert();
+    }
     //seat player
     seats[pos].senderAddr = msg.sender;
     seats[pos].amount = msg.value;
